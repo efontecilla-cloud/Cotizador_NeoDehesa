@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: cotizador-neodehesa
+    name: cotizador-via-trapenses
     runtime: node
     plan: free
     buildCommand: npm install

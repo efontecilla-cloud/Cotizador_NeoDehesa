@@ -1,6 +1,6 @@
-# Cotizador NeoDehesa
+# Cotizador Vía Trapenses
 
-Cotizador online para la sala de ventas del proyecto NeoDehesa (Vitalia Inmobiliaria).
+Cotizador online para la sala de ventas del proyecto Vía Trapenses (Vitalia Inmobiliaria).
 
 - Selector 3D del edificio: click en un departamento para cotizarlo.
 - Precios de lista y con descuento (el precio base no está en la aplicación).

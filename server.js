@@ -1,4 +1,4 @@
-// Cotizador NeoDehesa — servidor web (Node 18+ / Express)
+// Cotizador Vía Trapenses — servidor web (Node 18+ / Express)
 // Sirve el cotizador (public/index.html) y una API JSON para bloqueos, clientes, cotizaciones y valor UF.
 'use strict';
 const express = require('express');
@@ -91,7 +91,7 @@ app.get('/api/clientes.xlsx', (req, res) => {
     'Cotizaciones': cotPorCliente[c.id] || cotPorCliente[(c.nombre || '').toLowerCase()] || 0,
     'Creado': fmtDate(c.creado), 'Actualizado': fmtDate(c.actualizado)
   }));
-  sendXlsx(res, rows, 'Clientes', 'Clientes NeoDehesa');
+  sendXlsx(res, rows, 'Clientes', 'Clientes Via Trapenses');
 });
 
 // ---------- cotizaciones ----------
@@ -108,7 +108,7 @@ app.post('/api/cotizaciones', requirePin, (req, res) => {
   if (db.blocked[p.unidad.key]) return res.status(409).json({ error: 'La unidad está marcada como vendida' });
   db.seq += 1;
   const ymd = String(p.fecha || nowIso().slice(0, 10)).replace(/-/g, '');
-  const numero = `ND-${ymd}-${String(db.seq).padStart(4, '0')}`;
+  const numero = `VT-${ymd}-${String(db.seq).padStart(4, '0')}`;
   const c = Object.assign({}, p, { id: newId(), numero, creada: nowIso() });
   db.cotizaciones.push(c);
   saveDb(db);
@@ -127,7 +127,7 @@ app.get('/api/cotizaciones.xlsx', (req, res) => {
     'Pie contado %': c.pay && c.pay.pie1, 'Pie cuotas %': c.pay && c.pay.pie2, 'N° cuotas': c.pay && c.pay.cuotas, 'Crédito %': c.pay && c.pay.credito,
     'Vendedor': c.vendedor && c.vendedor.nombre
   }));
-  sendXlsx(res, rows, 'Cotizaciones', 'Cotizaciones NeoDehesa');
+  sendXlsx(res, rows, 'Cotizaciones', 'Cotizaciones Via Trapenses');
 });
 
 // ---------- valor UF (mindicador.cl, con caché) ----------
@@ -150,7 +150,7 @@ app.get('/api/uf', async (req, res) => {
 
 // ---------- respaldo ----------
 app.get('/api/backup', requirePin, (req, res) => {
-  res.setHeader('Content-Disposition', `attachment; filename="neodehesa-backup-${nowIso().slice(0, 10)}.json"`);
+  res.setHeader('Content-Disposition', `attachment; filename="via-trapenses-backup-${nowIso().slice(0, 10)}.json"`);
   res.json(loadDb());
 });
 app.post('/api/restore', requirePin, (req, res) => {
@@ -174,4 +174,4 @@ function sendXlsx(res, rows, sheet, filename) {
   res.send(buf);
 }
 
-app.listen(PORT, () => console.log(`Cotizador NeoDehesa escuchando en puerto ${PORT} · datos en ${DATA_DIR}${ADMIN_PIN ? ' · PIN activo' : ''}`));
+app.listen(PORT, () => console.log(`Cotizador Vía Trapenses escuchando en puerto ${PORT} · datos en ${DATA_DIR}${ADMIN_PIN ? ' · PIN activo' : ''}`));

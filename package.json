@@ -1,7 +1,7 @@
 {
-  "name": "cotizador-neodehesa",
+  "name": "cotizador-via-trapenses",
   "version": "1.0.0",
-  "description": "Cotizador online NeoDehesa — Vitalia Inmobiliaria (sala de ventas)",
+  "description": "Cotizador online Vía Trapenses — Vitalia Inmobiliaria (sala de ventas)",
   "main": "server.js",
   "private": true,
   "scripts": {
