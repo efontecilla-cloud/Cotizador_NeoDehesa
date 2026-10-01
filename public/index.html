@@ -829,21 +829,33 @@ function moveTip3D(ev) {
 }
 function hideTip3D() { const el = document.getElementById('v3d-tip'); if (el) el.style.display = 'none'; }
 (function init3DDrag() {
+  // Rotación con mouse o touch. Sin setPointerCapture: con mouse, la captura hacía que el click
+  // llegara al SVG y no al departamento. El arrastre se sigue en window para no perderlo al salir del SVG.
   const svg = document.getElementById('v3d-svg');
   let last = null, raf = null;
-  svg.addEventListener('pointerdown', e => { last = { x: e.clientX, y: e.clientY }; dragMoved = false; svg.setPointerCapture(e.pointerId); });
-  svg.addEventListener('pointermove', e => {
+  const move = e => {
     if (!last) return;
     const dx = e.clientX - last.x, dy = e.clientY - last.y;
-    if (Math.abs(dx) + Math.abs(dy) < 2) return;
+    if (!dragMoved && Math.abs(dx) + Math.abs(dy) < 4) return;
     dragMoved = true; svg.classList.add('dragging'); last = { x: e.clientX, y: e.clientY };
     V3.yaw = ((V3.yaw + dx * 0.45 + 540) % 360) - 180;
     V3.pitch = Math.max(5, Math.min(88, V3.pitch - dy * 0.35));
     document.querySelectorAll('[id^="v3-"]').forEach(b => b.classList.remove('active'));
     if (!raf) raf = requestAnimationFrame(() => { raf = null; render3D(); });
+    if (e.cancelable) e.preventDefault();
+  };
+  const end = () => {
+    if (!last) return;
+    last = null; svg.classList.remove('dragging');
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+    if (dragMoved) setTimeout(() => { dragMoved = false; }, 0);   // el click que sigue a un arrastre no selecciona
+  };
+  svg.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button !== 0) return;
+    last = { x: e.clientX, y: e.clientY }; dragMoved = false;
+    window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
   });
-  const end = () => { if (!last) return; last = null; svg.classList.remove('dragging'); if (dragMoved) setTimeout(() => { dragMoved = false; }, 0); };
-  svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+  svg.style.touchAction = 'none';
 })();
 
 // ===== CÁLCULO =====
