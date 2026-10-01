@@ -1,0 +1,17 @@
+{
+  "name": "cotizador-neodehesa",
+  "version": "1.0.0",
+  "description": "Cotizador online NeoDehesa — Vitalia Inmobiliaria (sala de ventas)",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "xlsx": "^0.18.5"
+  }
+}

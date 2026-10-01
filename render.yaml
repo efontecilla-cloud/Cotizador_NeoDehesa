@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: cotizador-neodehesa
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      - key: DATA_DIR
+        value: /opt/render/project/src/data
+      # Opcional: PIN para marcar vendidos, guardar clientes y emitir cotizaciones
+      # - key: ADMIN_PIN
+      #   value: "1234"
+    # Para que los datos sobrevivan a los redeploys, agrega un disco persistente (plan Starter o superior)
+    # y apunta DATA_DIR a su ruta de montaje:
+    # disk:
+    #   name: datos
+    #   mountPath: /var/data
+    #   sizeGB: 1

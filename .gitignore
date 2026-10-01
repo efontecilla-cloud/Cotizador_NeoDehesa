@@ -1,0 +1,10 @@
+node_modules/
+data/
+*.log
+.DS_Store
+Thumbs.db
+# archivos de trabajo que no van al repositorio
+*.pdf
+*.xlsx
+*.csv
+Cotizador NeoDehesa SDV.html
