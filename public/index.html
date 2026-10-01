@@ -198,7 +198,7 @@
   <div class="sel3d no-print">
     <div class="sel-head">
       <h1>Selecciona un departamento</h1>
-      <div class="sub"><span id="unit-count">—</span> unidades · haz click en un departamento para cotizarlo · arrastra para girar · los departamentos vendidos se muestran en negro</div>
+      <div class="sub"><span id="unit-count">—</span> unidades · haz click en un departamento para cotizarlo (el resto queda transparente) · arrastra para girar · click en el suelo para deseleccionar · los departamentos vendidos se muestran en negro</div>
     </div>
     <div class="toolbar" style="margin-bottom:8px;">
       <div class="grp">Precio en fachada:
@@ -213,8 +213,6 @@
         <button id="v3-pl" onclick="setView3D(-8, 84, this)">Planta</button>
       </div>
       <div class="grp">Separar pisos <input type="range" min="0" max="1.6" step="0.05" value="0" oninput="V3.explode=parseFloat(this.value); render3D()"></div>
-      <div class="grp">Buscar <input type="text" id="q" placeholder="ej. 604, 06-O, 3D" oninput="render3D()"></div>
-      <div class="grp">O elige de la lista <select id="unit-select" onchange="if (this.value) selectUnit(this.value)"><option value="">—</option></select></div>
     </div>
     <div class="v3d-wrap"><svg id="v3d-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg></div>
     <div class="legend"><span><i style="background:#60a5fa"></i>1D+1B</span><span><i style="background:#34d399"></i>2D+2BA</span><span><i style="background:#fb923c"></i>2D+2BB</span><span><i style="background:#a78bfa"></i>3D+2B (punta oriente)</span><span><i style="background:#1f2937"></i>Vendido</span><span><i style="background:#475569"></i>Core / escaleras</span><span><i style="background:#bbf7d0"></i>Jardín (1°)</span><span><i style="background:#fde68a"></i>Azotea (6°)</span><span><i style="border:2px solid #c9a24a; background:white;"></i>Unidad seleccionada</span></div>
@@ -545,7 +543,7 @@ function selectUnit(k, force) {
   if (u && isSold(u) && !force) { toast(`El departamento ${uLabel(u)} (piso ${u.piso}°) está marcado como vendido.`, true); return; }
   selected = u;
   if (!force) { viewingId = null; docNumberStr = null; document.getElementById('viewing').style.display = 'none'; }
-  document.getElementById('unit-select').value = selected ? k : '';
+  const usel = document.getElementById('unit-select'); if (usel) usel.value = selected ? k : '';
   updateSelbox();
   render3D(); render();
 }
@@ -559,6 +557,7 @@ function updateSelbox() {
 }
 function fillSelect() {
   const sel = document.getElementById('unit-select');
+  if (!sel) return;
   const cur = sel.value;
   const list = [...UNITS].sort((a, b) => b.piso - a.piso || a.unidad.localeCompare(b.unidad) || a.lado.localeCompare(b.lado));
   sel.innerHTML = '<option value="">—</option>' + list.map(u => `<option value="${uKey(u)}"${isSold(u) ? ' disabled' : ''}>Piso ${u.piso}° · ${uLabel(u)} · ${u.tipologia} · UF ${fmt0(u.lista)}${isSold(u) ? ' · VENDIDO' : ''}</option>`).join('');
@@ -689,7 +688,7 @@ function matchesQuery(u, q) { return !q || (uCode(u) + ' ' + uLabel(u) + ' ' + u
 function render3D() {
   const svg = document.getElementById('v3d-svg');
   if (!svg) return;
-  const q = (document.getElementById('q').value || '').trim().toLowerCase().replace(/\s/g, '');
+  const qEl = document.getElementById('q'); const q = qEl ? (qEl.value || '').trim().toLowerCase().replace(/\s/g, '') : '';
   const aplica = document.getElementById('aplica-desc').checked;
   const labelMode = (V3.label === 'desc' && aplica) ? 'desc' : 'lista';
   const t = V3.yaw * Math.PI / 180, p = V3.pitch * Math.PI / 180;
@@ -704,7 +703,7 @@ function render3D() {
     UNITS.filter(u => u.piso === piso).forEach(u => {
       const s = SLOT3D[uLabel(u)];
       if (!s) return;
-      const dim = q ? !matchesQuery(u, q) : false;
+      const dim = q ? !matchesQuery(u, q) : (selKey ? uKey(u) !== selKey : false);
       const sold = isSold(u);
       addBox({ kind: 'unit', x0: s.x0, x1: s.x1, y0: s.y0, y1: s.y1, z0, z1, color: sold ? SOLD_COLOR : (tipoColor[u.tipologia] || '#94a3b8'), u, dim, sold, sel: uKey(u) === selKey, price: labelMode === 'desc' ? u.desc : u.lista });
       if (u.azotea > 0) addBox({ kind: 'azotea', x0: s.x0 + 0.05, x1: s.x1 - 0.05, y0: s.y0 + 0.05, y1: s.y1 - 0.05, z0: z1, z1: z1 + SLAB, color: sold ? '#4b5563' : '#fde68a', dim });
@@ -737,7 +736,7 @@ function render3D() {
   const gx0 = -0.9, gx1 = B3.L + B3.PW + 0.6, gy0 = -(G/2 + D + PATIO + 0.5), gy1 = G/2 + D + PATIO + 0.5;
   const g = [[gx0,gy0],[gx1,gy0],[gx1,gy1],[gx0,gy1]].map(([x,y]) => proj3(x, y, -0.02));
   g.forEach(track);
-  out += `<polygon points="${g.map(q => q.sx.toFixed(3)+','+q.sy.toFixed(3)).join(' ')}" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="0.02"/>`;
+  out += `<polygon points="${g.map(q => q.sx.toFixed(3)+','+q.sy.toFixed(3)).join(' ')}" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="0.02" style="cursor:default" onclick="if (!dragMoved && selected) selectUnit('')"/>`;
   const flipX = Math.cos(t) < 0;
   const groundText = (x, y, txt) => {
     const ax = flipX ? [-ex[0], -ex[1]] : ex; const ay = flipX ? ey : [-ey[0], -ey[1]]; const o = proj3(x, y, 0);
@@ -926,7 +925,7 @@ function render() {
 
   const highlight = c.aplica
     ? `<div class="highlight"><div class="hl"><div class="k">Precio de lista</div><div class="v">UF ${fmt2(c.totLista)}</div><div class="s">${clp(c.totLista)}</div></div>
-       <div class="hl"><div class="k">Descuento</div><div class="v" style="color:#b91c1c;">− UF ${fmt2(c.totDesc)}</div><div class="s">${fmtP(c.totDesc / c.totLista * 100)} sobre el precio de lista</div></div>
+       <div class="hl"><div class="k">Descuento</div><div class="v" style="color:#b91c1c;">− UF ${fmt2(c.totDesc)}</div><div class="s">${clp(c.totDesc)}</div></div>
        <div class="hl main"><div class="k">Precio con descuento</div><div class="v">UF ${fmt2(c.total)}</div><div class="s">${clp(c.total)}</div></div></div>`
     : `<div class="highlight"><div class="hl main"><div class="k">Precio de lista</div><div class="v">UF ${fmt2(c.total)}</div><div class="s">${clp(c.total)}</div></div></div>`;
 
@@ -945,7 +944,7 @@ function render() {
       <div><span>Cliente</span><b>${esc(cliente) || '<span style="color:#94a3b8;font-weight:normal;">—</span>'}</b></div>
       <div><span>Dirección</span><b>${esc(PROYECTO.direccion)}</b></div>
       <div><span>RUT</span><b>${esc(rut) || '—'}</b></div>
-      <div><span>Valor UF</span><b>${c.ufv ? '$ ' + fmt2(c.ufv) + ' <span style="font-weight:normal;color:#64748b;">(' + fecha + ')</span>' : '<span style="font-weight:normal;color:#64748b;">montos solo en UF</span>'}</b></div>
+      <div><span>Valor UF</span><b>${c.ufv ? '$ ' + fmt2(c.ufv) : '<span style="font-weight:normal;color:#64748b;">montos solo en UF</span>'}</b></div>
       <div><span>Contacto</span><b>${esc(contacto) || '—'}</b></div>
     </div>
 
@@ -958,7 +957,6 @@ function render() {
 
     <h3 class="sec">Características del departamento ${uLabel(u)}</h3>
     ${chars}
-    <div class="hint" style="margin-top:4px;">Sup. total = superficie interior + terraza. Superficies aproximadas según planos municipales. Ficha del departamento en la página siguiente.</div>
 
     <h3 class="sec">Forma de pago</h3>
     <table class="doc">
@@ -1039,7 +1037,7 @@ function limpiar() {
   document.getElementById('pay-pie1').value = 10; document.getElementById('pay-pie2').value = 10; document.getElementById('pay-cuotas').value = 18; document.getElementById('pay-credito').value = 80;
   document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
   document.getElementById('warn').style.display = 'none';
-  document.getElementById('q').value = '';
+  const qEl2 = document.getElementById('q'); if (qEl2) qEl2.value = '';
   selectUnit('');
 }
 function saveSeller() { try { localStorage.setItem('nd_seller', JSON.stringify({ n: document.getElementById('v-nombre').value, f: document.getElementById('v-fono').value, e: document.getElementById('v-email').value })); } catch (e) {} }
