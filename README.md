@@ -81,6 +81,7 @@ Todas las rutas (salvo login, `/api/me` y `/healthz`) exigen sesión; sin ella r
 | GET / POST / DELETE | `/api/clientes`, `/api/clientes/:id` | Clientes guardados. |
 | GET | `/api/clientes.xlsx` | Exporta clientes a Excel. |
 | GET / POST | `/api/cotizaciones`, `/api/cotizaciones/:id` | Cotizaciones emitidas (el servidor asigna el número). |
+| DELETE | `/api/cotizaciones/:id` | (admin) Elimina una cotización. |
 | GET | `/api/cotizaciones.xlsx` | Exporta cotizaciones a Excel. |
 | GET | `/api/uf` | Valor UF del día (caché de 6 horas). |
 | GET / POST | `/api/backup`, `/api/restore` | (admin) Respaldo y restauración de la base de datos. |

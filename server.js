@@ -232,6 +232,15 @@ app.post('/api/cotizaciones', requirePin, (req, res) => {
   saveDb(db);
   res.json({ ok: true, id: c.id, numero });
 });
+// Solo el administrador puede borrar una cotización (el número no se reutiliza).
+app.delete('/api/cotizaciones/:id', requireAdmin, requirePin, (req, res) => {
+  const db = loadDb();
+  const n = db.cotizaciones.length;
+  db.cotizaciones = db.cotizaciones.filter(c => c.id !== req.params.id);
+  if (db.cotizaciones.length === n) return res.status(404).json({ error: 'no encontrada' });
+  saveDb(db);
+  res.json({ ok: true });
+});
 app.get('/api/cotizaciones.xlsx', (req, res) => {
   const db = loadDb();
   const rows = db.cotizaciones.map(c => ({

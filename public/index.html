@@ -191,8 +191,10 @@
   .fig .legend { margin-top: 4px; }
   .fig .legend i { border-radius: 3px; }
   .chart-tip { position: fixed; z-index: 90; background: #0f172a; color: white; padding: 6px 9px; border-radius: 6px; font-size: 11.5px; pointer-events: none; display: none; box-shadow: 0 6px 18px rgba(0,0,0,0.25); white-space: nowrap; }
+  .rep-maps { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .map-title { font-size: 11px; font-weight: 600; color: #334155; margin: 4px 0; }
   .rep-3d { border: 2px solid #cbd5e1; border-radius: 8px; background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%); overflow: hidden; }
-  .rep-3d svg { width: 100%; height: 380px; display: block; }
+  .rep-3d svg { width: 100%; height: 320px; display: block; }
   .rep-3d svg polygon { stroke: rgba(15,23,42,0.45); stroke-width: 0.014; stroke-linejoin: round; }
   .rep-3d svg text { pointer-events: none; font-family: "Segoe UI", Roboto, -apple-system, sans-serif; }
   .rep-3d svg .flabel { font-size: 0.26px; font-weight: 700; fill: #334155; }
@@ -220,6 +222,7 @@
     body.print-report .card { box-shadow: none; border-radius: 0; margin: 0; padding: 14mm 16mm; }
     body.print-report .card.no-print-report, body.print-report .no-print-report { display: none !important; }
     body.print-report .kpis { grid-template-columns: repeat(4, 1fr); }
+    body.print-report .rep-maps { grid-template-columns: 1fr; }
     body.print-report .rep-3d { break-inside: avoid; }
     body.print-report .rep-3d svg { height: 300px; }
     body.print-report .rep-grid { break-inside: avoid; }
@@ -740,8 +743,18 @@ function renderCotizaciones() {
   if (!list.length) { t.innerHTML = '<tr><td class="hint" style="padding:14px;">Aún no hay cotizaciones emitidas.</td></tr>'; return; }
   t.innerHTML = '<tr><th>N°</th><th>Emitida</th><th>Unidad</th><th>Tipología</th><th>Cliente</th><th class="r">Lista UF</th><th class="r">Desc. UF</th><th class="r">Total UF</th><th class="r">Total $</th><th>Vendedor</th><th></th></tr>' + list.map(c => {
     const tt = c.totales || {}; const u = c.unidad || {}; const cl = c.cliente || {};
-    return `<tr><td><b>${esc(c.numero)}</b></td><td>${fmtDT(c.creada)}</td><td>${esc(u.label)} · ${u.piso}°</td><td>${esc(u.tipologia)}</td><td>${esc(cl.nombre)}</td><td class="r">${tt.lista != null ? fmt0(tt.lista) : ''}</td><td class="r">${c.aplica ? '− ' + fmt0(tt.descuento || 0) : '<span class="badge no">sin dcto</span>'}</td><td class="r"><b>${tt.total != null ? fmt0(tt.total) : ''}</b></td><td class="r">${c.uf && tt.total != null ? fmtCLP(tt.total * c.uf) : '—'}</td><td>${esc(c.vendedor && c.vendedor.nombre)}</td><td><button class="btn-secondary btn-sm" onclick="verCotizacion('${c.id}')">Ver</button></td></tr>`;
+    return `<tr><td><b>${esc(c.numero)}</b></td><td>${fmtDT(c.creada)}</td><td>${esc(u.label)} · ${u.piso}°</td><td>${esc(u.tipologia)}</td><td>${esc(cl.nombre)}</td><td class="r">${tt.lista != null ? fmt0(tt.lista) : ''}</td><td class="r">${c.aplica ? '− ' + fmt0(tt.descuento || 0) : '<span class="badge no">sin dcto</span>'}</td><td class="r"><b>${tt.total != null ? fmt0(tt.total) : ''}</b></td><td class="r">${c.uf && tt.total != null ? fmtCLP(tt.total * c.uf) : '—'}</td><td>${esc(c.vendedor && c.vendedor.nombre)}</td><td style="white-space:nowrap;"><button class="btn-secondary btn-sm" onclick="verCotizacion('${c.id}')">Ver</button>${isAdmin() ? ` <button class="btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="borrarCotizacion('${c.id}')">Eliminar</button>` : ''}</td></tr>`;
   }).join('');
+}
+async function borrarCotizacion(id) {
+  const c = STATE.cotizaciones.find(x => x.id === id); if (!c || !isAdmin()) return;
+  if (!window.confirm(`¿Eliminar la cotización ${c.numero} (${(c.unidad && c.unidad.label) || ''} · ${(c.cliente && c.cliente.nombre) || 'sin cliente'})? Esta acción no se puede deshacer.`)) return;
+  try {
+    await api('DELETE', '/api/cotizaciones/' + id);
+    toast(`Cotización ${c.numero} eliminada`);
+    if (viewingId === id) limpiar();
+    await loadState();
+  } catch (e) { if (e.message !== 'PIN' && e.message !== 'login') toast('No se pudo eliminar: ' + e.message, true); }
 }
 async function verCotizacion(id) {
   try {
@@ -1291,6 +1304,10 @@ function renderInforme() {
   const tipos = Object.keys(tipoColor);
   const byTipo = tipos.map(t => { const tot = UNITS.filter(u => u.tipologia === t).length, v = soldUnits.filter(u => u.tipologia === t).length; return { label: t, a: v, b: tot - v }; });
   const soldSorted = soldKeys.map(k => ({ k, u: unitByKey[k], b: STATE.blocked[k] })).sort((x, y) => (y.b.fecha || '').localeCompare(x.b.fecha || ''));
+  const desde = weeks[0].getTime();
+  const nuevos = STATE.clientes.filter(c => c.creado && new Date(c.creado).getTime() >= desde).sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
+  const MAX_NUEVOS = 60;
+  const nCotCli = {}; STATE.cotizaciones.forEach(c => { const k = c.cliente && c.cliente.id; if (k) nCotCli[k] = (nCotCli[k] || 0) + 1; });
   const semana = `${ddmm(weeks[thisW])} al ${ddmm(new Date(weeks[thisW].getTime() + 6 * 864e5))}`;
   const delta = (a, b) => b === undefined ? '' : a === b ? 'igual que la semana anterior' : a > b ? `+${a - b} vs. semana anterior` : `${a - b} vs. semana anterior`;
   const now = new Date();
@@ -1313,9 +1330,15 @@ function renderInforme() {
         <h4 style="margin-top:10px;">Vendidos por tipología</h4>
         ${hStackChart(byTipo, { nameA: 'Vendidos', nameB: 'Disponibles', colorA: REP.sold, colorB: REP.free, aria: 'Vendidos y disponibles por tipología' })}</div>
     </div>
-    <div class="fig" style="margin-bottom:16px;"><h4>Mapa del edificio</h4><div class="sub">Blanco = disponible · Negro = vendido (bloqueado). Vista desde la Av. José Alcalde Délano.</div>
-      <div class="rep-3d"><svg id="rep-3d-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div class="fig" style="margin-bottom:16px;"><h4>Mapa del edificio</h4><div class="sub">Blanco = disponible · Negro = vendido (bloqueado). Vista frontal desde la Av. José Alcalde Délano (sur) y vista posterior desde el norte.</div>
+      <div class="rep-maps">
+        <div><div class="map-title">Por delante · fachada sur (Av. José Alcalde Délano)</div><div class="rep-3d"><svg id="rep-3d-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg></div></div>
+        <div><div class="map-title">Por detrás · fachada norte (vista Manquehue)</div><div class="rep-3d"><svg id="rep-3d-svg-back" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg></div></div>
+      </div>
       <div class="legend"><span><i style="background:#ffffff"></i>Disponible</span><span><i style="background:#111827"></i>Vendido</span><span><i style="background:#475569"></i>Core / escaleras</span><span><i style="background:#b6c2d1"></i>Circulación</span></div></div>
+    <div class="fig" style="margin-bottom:16px;"><h4>Nuevos clientes</h4><div class="sub">Clientes registrados en las últimas ${nW} semanas, del más reciente al más antiguo${nuevos.length > MAX_NUEVOS ? ` (se muestran ${MAX_NUEVOS} de ${nuevos.length})` : ''}.</div>
+      <table class="tbl"><tr><th>Fecha</th><th>Cliente</th><th>RUT</th><th>Contacto</th><th class="r">Cotizaciones</th><th>Registrado por</th></tr>
+      ${nuevos.length ? nuevos.slice(0, MAX_NUEVOS).map(c => `<tr><td>${fmtDT(c.creado).slice(0, 10)}</td><td><b>${esc(c.nombre)}</b></td><td>${esc(c.rut) || '—'}</td><td>${esc(c.contacto) || '—'}</td><td class="r">${nCotCli[c.id] || 0}</td><td>${esc(c.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="6" class="hint">No hay clientes nuevos en el período.</td></tr>'}</table></div>
     <div class="rep-grid">
       <div class="fig"><h4>Resumen por tipología</h4><div class="sub">Unidades vendidas y disponibles según tipología.</div>
         <table class="tbl"><tr><th>Tipología</th><th class="r">Total</th><th class="r">Vendidos</th><th class="r">Disponibles</th><th class="r">% vendido</th></tr>
@@ -1326,7 +1349,8 @@ function renderInforme() {
         ${soldSorted.length ? soldSorted.map(x => `<tr><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${esc(x.u && x.u.orientacion)}</td><td>${fmtDT(x.b.fecha).slice(0, 10)}</td><td>${esc(x.b.motivo)}</td><td>${esc(x.b.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="7" class="hint">No hay departamentos vendidos.</td></tr>'}</table></div>
     </div>
     <div class="rep-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Lista de precios ${PRICE_DATE} · ${STATE.cotizaciones.length} cotizaciones · ${STATE.clientes.length} clientes</span></div>`;
-  render3D({ report: true, svg: document.getElementById('rep-3d-svg') });
+  render3D({ report: true, svg: document.getElementById('rep-3d-svg'), cam: { yaw: -32, pitch: 32, explode: 0 } });        // por delante (sur-este)
+  render3D({ report: true, svg: document.getElementById('rep-3d-svg-back'), cam: { yaw: 148, pitch: 32, explode: 0 } });   // por detrás (norte-oeste)
 }
 function exportarInforme() {
   if (!isAdmin()) return;
