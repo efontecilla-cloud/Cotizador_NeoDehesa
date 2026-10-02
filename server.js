@@ -146,8 +146,7 @@ app.get('/api/state', (req, res) => {
     clientes: db.clientes,
     cotizaciones: db.cotizaciones.map(c => ({
       id: c.id, numero: c.numero, creada: c.creada, fecha: c.fecha, unidad: c.unidad, cliente: c.cliente,
-      aplica: c.aplica, totales: c.totales, vendedor: c.vendedor, uf: c.uf, usuario: c.usuario,
-      estado: c.estado || '', estadoFecha: c.estadoFecha || null, estadoPor: c.estadoPor || null, nota: c.nota || ''
+      aplica: c.aplica, totales: c.totales, vendedor: c.vendedor, uf: c.uf, usuario: c.usuario
     }))
   });
 });
@@ -172,15 +171,42 @@ app.get('/api/admin/usuarios', requireAdmin, (req, res) => {
   res.json({ usuarios, accesos: db.accesos.slice(0, 30) });
 });
 
-// ---------- bloqueos (departamentos vendidos) ----------
+// ---------- ventas (departamentos bloqueados) ----------
+// Cada venta tiene un estado comercial (bloqueado → reservado → promesa), un cliente y una nota.
+// El mismo POST crea la venta (blocked: true) o la actualiza si ya existe; blocked: false la libera.
+const ESTADOS_VENTA = ['bloqueado', 'reservado', 'promesa'];
 app.post('/api/bloqueos', requirePin, (req, res) => {
-  const { key, blocked, motivo, unidad } = req.body || {};
+  const { key, blocked, estado, cliente, nota, motivo, unidad } = req.body || {};
   if (!key) return res.status(400).json({ error: 'key requerida' });
   const db = loadDb();
-  if (blocked) db.blocked[key] = { fecha: nowIso(), motivo: motivo || 'Vendido', unidad: unidad || null, usuario: req.user.usuario };
-  else delete db.blocked[key];
+  if (!blocked) { delete db.blocked[key]; saveDb(db); return res.json({ ok: true, blocked: db.blocked }); }
+  const e = String(estado || 'bloqueado').toLowerCase();
+  if (!ESTADOS_VENTA.includes(e)) return res.status(400).json({ error: 'estado inválido' });
+  const v = db.blocked[key] || { fecha: nowIso(), usuario: req.user.usuario, historial: [] };
+  if (v.estado !== e) {
+    v.estado = e; v.estadoFecha = nowIso(); v.estadoPor = req.user.usuario;
+    v.historial = (v.historial || []).concat([{ fecha: v.estadoFecha, usuario: req.user.usuario, estado: e }]).slice(-50);
+  }
+  if (cliente !== undefined) {
+    const cl = cliente || {};
+    v.cliente = { id: cl.id || null, nombre: String(cl.nombre || '').trim(), rut: String(cl.rut || '').trim(), contacto: String(cl.contacto || '').trim() };
+  }
+  if (nota !== undefined || motivo !== undefined) v.nota = String(nota !== undefined ? nota : motivo || '').trim().slice(0, 500);
+  if (unidad) v.unidad = unidad;
+  v.actualizada = nowIso();
+  db.blocked[key] = v;
   saveDb(db);
   res.json({ ok: true, blocked: db.blocked });
+});
+app.get('/api/ventas.xlsx', (req, res) => {
+  const db = loadDb();
+  const rows = Object.entries(db.blocked).map(([k, v]) => ({
+    'Unidad': (v.unidad && v.unidad.label) || k, 'Piso': v.unidad && v.unidad.piso, 'Tipología': v.unidad && v.unidad.tipologia,
+    'Estado': cap(v.estado || 'bloqueado'), 'Fecha estado': fmtDate(v.estadoFecha || v.fecha), 'Cambiado por': v.estadoPor || v.usuario || '',
+    'Cliente': v.cliente && v.cliente.nombre, 'RUT': v.cliente && v.cliente.rut, 'Contacto': v.cliente && v.cliente.contacto,
+    'Nota': v.nota || v.motivo || '', 'Registrada': fmtDate(v.fecha), 'Registrada por': v.usuario || ''
+  }));
+  sendXlsx(res, rows, 'Ventas', 'Ventas Via Trapenses');
 });
 
 // ---------- clientes ----------
@@ -233,30 +259,6 @@ app.post('/api/cotizaciones', requirePin, (req, res) => {
   saveDb(db);
   res.json({ ok: true, id: c.id, numero });
 });
-// Estado comercial y cliente de una cotización ya emitida (cualquier usuario con sesión).
-const ESTADOS = ['', 'bloqueado', 'reservado', 'promesa'];
-app.patch('/api/cotizaciones/:id', requirePin, (req, res) => {
-  const b = req.body || {};
-  const db = loadDb();
-  const c = db.cotizaciones.find(x => x.id === req.params.id);
-  if (!c) return res.status(404).json({ error: 'no encontrada' });
-  if (b.estado !== undefined) {
-    const e = String(b.estado || '').toLowerCase();
-    if (!ESTADOS.includes(e)) return res.status(400).json({ error: 'estado inválido' });
-    if ((c.estado || '') !== e) {
-      c.estado = e; c.estadoFecha = nowIso(); c.estadoPor = req.user.usuario;
-      c.historial = (c.historial || []).concat([{ fecha: c.estadoFecha, usuario: req.user.usuario, estado: e }]).slice(-50);
-    }
-  }
-  if (b.cliente !== undefined) {
-    const cl = b.cliente || {};
-    c.cliente = { id: cl.id || null, nombre: String(cl.nombre || '').trim(), rut: String(cl.rut || '').trim(), contacto: String(cl.contacto || '').trim() };
-  }
-  if (b.nota !== undefined) c.nota = String(b.nota || '').trim().slice(0, 500);
-  c.actualizada = nowIso();
-  saveDb(db);
-  res.json(c);
-});
 // Solo el administrador puede borrar una cotización (el número no se reutiliza).
 app.delete('/api/cotizaciones/:id', requireAdmin, requirePin, (req, res) => {
   const db = loadDb();
@@ -272,7 +274,6 @@ app.get('/api/cotizaciones.xlsx', (req, res) => {
     'N°': c.numero, 'Fecha': c.fecha, 'Emitida': fmtDate(c.creada),
     'Unidad': c.unidad && c.unidad.label, 'Piso': c.unidad && c.unidad.piso, 'Tipología': c.unidad && c.unidad.tipologia, 'Orientación': c.unidad && c.unidad.orientacion,
     'Cliente': c.cliente && c.cliente.nombre, 'RUT': c.cliente && c.cliente.rut, 'Contacto': c.cliente && c.cliente.contacto,
-    'Estado': c.estado ? c.estado.charAt(0).toUpperCase() + c.estado.slice(1) : '', 'Fecha estado': fmtDate(c.estadoFecha), 'Nota': c.nota || '',
     'Con descuento': c.aplica ? 'Sí' : 'No',
     'Precio lista UF': c.totales && c.totales.lista, 'Descuento UF': c.totales && c.totales.descuento, 'Total UF': c.totales && c.totales.total,
     'Valor UF': c.uf || '', 'Total $': (c.uf && c.totales) ? Math.round(c.totales.total * c.uf) : '',
@@ -335,6 +336,7 @@ app.post('/api/restore', requireAdmin, requirePin, (req, res) => {
 
 // ---------- utilidades ----------
 function fmtDate(iso) { return iso ? String(iso).replace('T', ' ').slice(0, 16) : ''; }
+function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
 function sendXlsx(res, rows, sheet, filename) {
   const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'Sin datos': '' }]);
   const wb = XLSX.utils.book_new();

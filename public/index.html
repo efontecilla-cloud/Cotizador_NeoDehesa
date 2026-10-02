@@ -254,7 +254,7 @@
     <button id="tab-cotizar" class="active" onclick="showView('cotizar')">Cotizar</button>
     <button id="tab-cotizaciones" onclick="showView('cotizaciones')">Cotizaciones <span id="cnt-cot" class="badge no">0</span></button>
     <button id="tab-clientes" onclick="showView('clientes')">Clientes <span id="cnt-cli" class="badge no">0</span></button>
-    <button id="tab-vendidos" onclick="showView('vendidos')">Vendidos <span id="cnt-sold" class="badge no">0</span></button>
+    <button id="tab-vendidos" onclick="showView('vendidos')">Ventas <span id="cnt-sold" class="badge no">0</span></button>
     <button id="tab-admin" onclick="showView('admin')" style="display:none;">Administración</button>
   </div>
   <div class="right">
@@ -351,7 +351,6 @@
       <div class="sub">Todas las cotizaciones registradas por la sala de ventas. "Ver" la vuelve a cargar para revisarla o reimprimirla.</div>
       <div class="bar">
         <input type="text" id="q-cot" placeholder="Buscar por N°, unidad o cliente" oninput="renderCotizaciones()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; width:260px;">
-        <select id="f-estado" onchange="renderCotizaciones()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px;"><option value="*">Todos los estados</option><option value="">Sin estado</option><option value="bloqueado">Bloqueado</option><option value="reservado">Reservado</option><option value="promesa">Promesa</option></select>
         <a class="btn-primary btn-sm" style="text-decoration:none; display:inline-block;" href="/api/cotizaciones.xlsx">Exportar a Excel</a>
         <span class="hint" id="cot-info" style="margin:0"></span>
       </div>
@@ -380,8 +379,14 @@
 <div class="view" id="view-vendidos">
   <div class="page">
     <div class="card">
-      <h2>Departamentos vendidos (bloqueados)</h2>
-      <div class="sub">Se muestran en negro en el edificio y no admiten nuevas cotizaciones. Para marcar uno, selecciónalo en la pestaña Cotizar y usa "Marcar como vendido".</div>
+      <h2>Ventas</h2>
+      <div class="sub">Departamentos vendidos: se muestran en negro en el edificio y no admiten nuevas cotizaciones. Cada venta tiene un estado (Bloqueado → Reservado → Promesa), un cliente y una nota. Para registrar una, selecciona el departamento en la pestaña Cotizar y pulsa "Registrar venta".</div>
+      <div class="bar">
+        <input type="text" id="q-venta" placeholder="Buscar por unidad, tipología o cliente" oninput="renderVendidos()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; width:260px;">
+        <select id="f-venta-estado" onchange="renderVendidos()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px;"><option value="*">Todos los estados</option><option value="bloqueado">Bloqueado</option><option value="reservado">Reservado</option><option value="promesa">Promesa</option></select>
+        <a class="btn-primary btn-sm" style="text-decoration:none; display:inline-block;" href="/api/ventas.xlsx">Exportar a Excel</a>
+        <span class="hint" id="venta-info" style="margin:0"></span>
+      </div>
       <div style="overflow-x:auto;"><table class="tbl" id="tbl-sold"></table></div>
     </div>
   </div>
@@ -419,7 +424,7 @@
 <!-- editor de estado y cliente de una cotización emitida -->
 <div class="modal-bg" id="edit-bg" onclick="if (event.target === this) cerrarEdicion()">
   <div class="modal">
-    <h3 id="edit-title">Cotización</h3>
+    <h3 id="edit-title">Venta</h3>
     <div class="sub" id="edit-sub"></div>
     <div class="row"><label>Estado</label><div class="est-opts" id="edit-estados"></div></div>
     <div class="row"><label>Cliente guardado</label><select id="edit-cli-sel" onchange="editPickCliente(this.value)"><option value="">— escribir a mano —</option></select></div>
@@ -427,7 +432,7 @@
     <div class="row"><label>RUT</label><input type="text" id="edit-rut" placeholder="opcional"></div>
     <div class="row"><label>Email / fono</label><input type="text" id="edit-contacto" placeholder="opcional"></div>
     <div class="row"><label></label><label style="width:auto; display:flex; align-items:center; gap:6px; color:#334155;"><input type="checkbox" id="edit-guardar-cli" style="flex:0"> Guardar también en la lista de clientes</label></div>
-    <div class="row"><label>Nota</label><textarea id="edit-nota" rows="2" placeholder="opcional (p. ej. fecha de la reserva, banco, observaciones)"></textarea></div>
+    <div class="row"><label>Nota</label><textarea id="edit-nota" rows="2" placeholder="opcional (p. ej. fecha de la promesa, banco, observaciones)"></textarea></div>
     <div class="foot"><button class="btn-secondary" onclick="cerrarEdicion()">Cancelar</button><button class="btn-primary" onclick="guardarEdicion()">Guardar</button></div>
   </div>
 </div>
@@ -688,9 +693,11 @@ function updateSelbox() {
   const sb = document.getElementById('selbox');
   if (!selected) { sb.innerHTML = '<span class="none">Ninguna unidad seleccionada. Haz click en el edificio.</span>'; return; }
   const u = selected, sold = isSold(u);
-  sb.innerHTML = `<div>Unidad seleccionada: <b>${uLabel(u)} · piso ${u.piso}°</b> · ${esc(u.tipologia)} · ${esc(u.orientacion)} · ficha tipo ${u.ficha}${sold ? ' <span class="badge sold">VENDIDO</span>' : ''}</div>
+  const v = sold ? STATE.blocked[uKey(u)] : null;
+  sb.innerHTML = `<div>Unidad seleccionada: <b>${uLabel(u)} · piso ${u.piso}°</b> · ${esc(u.tipologia)} · ${esc(u.orientacion)} · ficha tipo ${u.ficha}${sold ? ' <span class="badge sold">VENDIDO</span> ' + estadoBadge(ventaEstado(v)) : ''}</div>
     <div style="margin-top:2px;">Lista <b>UF ${fmt0(u.lista)}</b> · con descuento <b>UF ${fmt0(u.desc)}</b> (−${fmtP((1 - u.desc / u.lista) * 100)}) · ${fmt2(supTotal(u))} m² (${fmt2(u.interior)} int + ${fmt2(u.terraza)} terraza)</div>
-    <div class="acts">${sold ? `<button class="btn-secondary btn-sm" onclick="liberar('${uKey(u)}')">Liberar (volver a disponible)</button>` : `<button class="btn-dark btn-sm" onclick="marcarVendido('${uKey(u)}')">Marcar como vendido</button>`}</div>`;
+    ${sold && v.cliente && v.cliente.nombre ? `<div style="margin-top:2px;">Cliente: <b>${esc(v.cliente.nombre)}</b>${v.cliente.rut ? ' · ' + esc(v.cliente.rut) : ''}${ventaNota(v) ? ' · ' + esc(ventaNota(v)) : ''}</div>` : ''}
+    <div class="acts">${sold ? `<button class="btn-dark btn-sm" onclick="editarVenta('${uKey(u)}')">Estado / cliente</button> <button class="btn-secondary btn-sm" onclick="liberar('${uKey(u)}')">Liberar (volver a disponible)</button>` : `<button class="btn-dark btn-sm" onclick="marcarVendido('${uKey(u)}')">Registrar venta</button>`}</div>`;
 }
 function fillSelect() {
   const sel = document.getElementById('unit-select');
@@ -702,27 +709,83 @@ function fillSelect() {
 }
 function setActive(prefix, id) { document.querySelectorAll(`[id^="${prefix}"]`).forEach(b => b.classList.toggle('active', b.id === id)); }
 
-// ===== VENDIDOS =====
-async function marcarVendido(k) {
+// ===== VENTAS (departamentos bloqueados) =====
+// Estado comercial de una venta: bloqueado → reservado → promesa. Las ventas antiguas sin estado se tratan como "bloqueado".
+const ESTADOS = [['bloqueado', 'Bloqueado'], ['reservado', 'Reservado'], ['promesa', 'Promesa']];
+const ventaEstado = v => (v && ESTADOS.some(e => e[0] === v.estado)) ? v.estado : 'bloqueado';
+const estadoLabel = e => (ESTADOS.find(x => x[0] === e) || ESTADOS[0])[1];
+const estadoBadge = e => `<span class="badge e-${e}">${estadoLabel(e)}</span>`;
+const ventaNota = v => (v && (v.nota || (v.motivo && v.motivo !== 'Vendido' ? v.motivo : ''))) || '';
+let editKey = null, editEstado = 'bloqueado', editNueva = false;
+// Abre el editor: para registrar una venta nueva (desde la pestaña Cotizar) o para cambiar una existente.
+function marcarVendido(k) { abrirVenta(k, true); }
+function editarVenta(k) { abrirVenta(k, false); }
+function abrirVenta(k, nueva) {
   const u = unitByKey[k]; if (!u) return;
-  if (!window.confirm(`¿Marcar el departamento ${uLabel(u)} (piso ${u.piso}°) como VENDIDO? No se podrán emitir nuevas cotizaciones.`)) return;
-  const motivo = window.prompt('Motivo / referencia (opcional):', 'Vendido') || 'Vendido';
-  try { await api('POST', '/api/bloqueos', { key: k, blocked: true, motivo, unidad: { label: uLabel(u), piso: u.piso, tipologia: u.tipologia } }); toast(`${uLabel(u)} marcado como vendido`); if (selected && uKey(selected) === k) selected = null; await loadState(); render(); }
-  catch (e) { if (e.message !== 'PIN') toast('No se pudo marcar: ' + e.message, true); }
+  const v = nueva ? null : STATE.blocked[k];
+  editKey = k; editNueva = nueva; editEstado = v ? ventaEstado(v) : 'bloqueado';
+  // En una venta nueva se proponen los datos del cliente que está en el formulario de cotización.
+  const cl = v ? (v.cliente || {}) : { id: document.getElementById('cliente-sel').value || null, nombre: document.getElementById('cliente').value.trim(), rut: document.getElementById('rut').value.trim(), contacto: document.getElementById('contacto').value.trim() };
+  document.getElementById('edit-title').textContent = `${nueva ? 'Registrar venta' : 'Venta'} · departamento ${uLabel(u)} · piso ${u.piso}°`;
+  document.getElementById('edit-sub').textContent = nueva
+    ? `${u.tipologia} · ${u.orientacion}. Al guardar, el departamento se marca en negro y no admite nuevas cotizaciones.`
+    : `${u.tipologia} · ${u.orientacion} · registrada el ${fmtDT(v.fecha)}${v.estadoFecha ? ` · estado "${estadoLabel(ventaEstado(v))}" desde el ${fmtDT(v.estadoFecha)} (${v.estadoPor || v.usuario || ''})` : ''}`;
+  renderEditEstados();
+  const sel = document.getElementById('edit-cli-sel');
+  sel.innerHTML = '<option value="">— escribir a mano —</option>' + [...STATE.clientes].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(x => `<option value="${x.id}">${esc(x.nombre)}${x.rut ? ' · ' + esc(x.rut) : ''}</option>`).join('');
+  const guardado = cl.id ? STATE.clientes.find(x => x.id === cl.id) : null;
+  sel.value = guardado ? cl.id : '';
+  document.getElementById('edit-nombre').value = cl.nombre || (guardado && guardado.nombre) || ''; document.getElementById('edit-rut').value = cl.rut || (guardado && guardado.rut) || ''; document.getElementById('edit-contacto').value = cl.contacto || (guardado && guardado.contacto) || '';
+  document.getElementById('edit-guardar-cli').checked = false;
+  document.getElementById('edit-nota').value = ventaNota(v);
+  document.getElementById('edit-bg').classList.add('open');
+  document.getElementById('edit-nombre').focus();
+}
+function renderEditEstados() {
+  document.getElementById('edit-estados').innerHTML = ESTADOS.map(([v, l]) => `<button class="${v === editEstado ? 'active' : ''}" onclick="editEstado='${v}'; renderEditEstados()">${l}</button>`).join('');
+}
+function editPickCliente(id) {
+  const x = STATE.clientes.find(c => c.id === id); if (!x) return;
+  document.getElementById('edit-nombre').value = x.nombre; document.getElementById('edit-rut').value = x.rut || ''; document.getElementById('edit-contacto').value = x.contacto || '';
+}
+function cerrarEdicion() { document.getElementById('edit-bg').classList.remove('open'); editKey = null; }
+async function guardarEdicion() {
+  const u = unitByKey[editKey]; if (!u) return;
+  const nombre = document.getElementById('edit-nombre').value.trim(), rut = document.getElementById('edit-rut').value.trim(), contacto = document.getElementById('edit-contacto').value.trim();
+  let clId = document.getElementById('edit-cli-sel').value || null;
+  const selCli = clId && STATE.clientes.find(x => x.id === clId);
+  if (selCli && selCli.nombre !== nombre) clId = null;      // se cambió el nombre a mano: ya no es el cliente guardado
+  try {
+    if (!clId && nombre && document.getElementById('edit-guardar-cli').checked) {
+      const nuevo = await api('POST', '/api/clientes', { nombre, rut, contacto });
+      clId = nuevo.id;
+    }
+    await api('POST', '/api/bloqueos', { key: editKey, blocked: true, estado: editEstado, cliente: { id: clId, nombre, rut, contacto }, nota: document.getElementById('edit-nota').value, unidad: { label: uLabel(u), piso: u.piso, tipologia: u.tipologia, orientacion: u.orientacion } });
+    cerrarEdicion();
+    toast(`${uLabel(u)}: venta ${editNueva ? 'registrada' : 'actualizada'} (${estadoLabel(editEstado)})`);
+    if (editNueva && selected && uKey(selected) === editKey) selected = null;
+    await loadState(); render();
+  } catch (e) { if (e.message !== 'PIN' && e.message !== 'login') toast('No se pudo guardar: ' + e.message, true); }
 }
 async function liberar(k) {
   const u = unitByKey[k]; if (!u) return;
-  if (!window.confirm(`¿Volver a dejar disponible el departamento ${uLabel(u)} (piso ${u.piso}°)?`)) return;
+  if (!window.confirm(`¿Volver a dejar disponible el departamento ${uLabel(u)} (piso ${u.piso}°)? Se elimina la venta registrada.`)) return;
   try { await api('POST', '/api/bloqueos', { key: k, blocked: false }); toast(`${uLabel(u)} disponible nuevamente`); await loadState(); render(); }
   catch (e) { if (e.message !== 'PIN') toast('No se pudo liberar: ' + e.message, true); }
 }
 function renderVendidos() {
   const t = document.getElementById('tbl-sold');
-  const keys = Object.keys(STATE.blocked).sort();
-  if (!keys.length) { t.innerHTML = '<tr><td class="hint" style="padding:14px;">No hay departamentos marcados como vendidos.</td></tr>'; return; }
-  t.innerHTML = '<tr><th>Piso</th><th>Unidad</th><th>Tipología</th><th>Orientación</th><th>Marcado</th><th>Motivo</th><th></th></tr>' + keys.map(k => {
-    const u = unitByKey[k] || {}, b = STATE.blocked[k];
-    return `<tr><td>${u.piso || ''}°</td><td><b>${u.unidad ? uLabel(u) : k}</b></td><td>${esc(u.tipologia)}</td><td>${esc(u.orientacion)}</td><td>${fmtDT(b.fecha)}</td><td>${esc(b.motivo)}</td><td><button class="btn-secondary btn-sm" onclick="liberar('${k}')">Liberar</button></td></tr>`;
+  const fe = document.getElementById('f-venta-estado').value;
+  const q = (document.getElementById('q-venta').value || '').trim().toLowerCase();
+  const keys = Object.keys(STATE.blocked).filter(k => { const v = STATE.blocked[k], u = unitByKey[k] || {}; return (fe === '*' || ventaEstado(v) === fe) && (!q || `${u.unidad ? uLabel(u) : k} ${u.tipologia || ''} ${(v.cliente && v.cliente.nombre) || ''}`.toLowerCase().includes(q)); })
+    .sort((a, b) => ((STATE.blocked[b].estadoFecha || STATE.blocked[b].fecha) || '').localeCompare((STATE.blocked[a].estadoFecha || STATE.blocked[a].fecha) || ''));
+  const tot = Object.keys(STATE.blocked).length;
+  document.getElementById('venta-info').textContent = `${keys.length} de ${tot} ventas · ${ESTADOS.map(([v, l]) => `${Object.values(STATE.blocked).filter(x => ventaEstado(x) === v).length} ${l.toLowerCase()}`).join(' · ')}`;
+  if (!keys.length) { t.innerHTML = `<tr><td class="hint" style="padding:14px;">${tot ? 'Ninguna venta coincide con el filtro.' : 'No hay ventas registradas.'}</td></tr>`; return; }
+  t.innerHTML = '<tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Orientación</th><th>Estado</th><th>Desde</th><th>Cliente</th><th>Contacto</th><th>Nota</th><th>Por</th><th></th></tr>' + keys.map(k => {
+    const u = unitByKey[k] || {}, v = STATE.blocked[k], cl = v.cliente || {};
+    return `<tr><td><b>${u.unidad ? uLabel(u) : k}</b></td><td>${u.piso || ''}°</td><td>${esc(u.tipologia)}</td><td>${esc(u.orientacion)}</td><td>${estadoBadge(ventaEstado(v))}</td><td>${fmtDT(v.estadoFecha || v.fecha).slice(0, 10)}</td><td>${esc(cl.nombre) || '<span class="hint" style="margin:0">sin cliente</span>'}${cl.rut ? `<div class="hint" style="margin:0">${esc(cl.rut)}</div>` : ''}</td><td>${esc(cl.contacto) || '—'}</td><td>${esc(ventaNota(v)) || '—'}</td><td>${esc(v.estadoPor || v.usuario || '')}</td>
+      <td style="white-space:nowrap;"><button class="btn-secondary btn-sm" onclick="editarVenta('${k}')">Estado / cliente</button> <button class="btn-secondary btn-sm" onclick="liberar('${k}')">Liberar</button></td></tr>`;
   }).join('');
 }
 
@@ -769,61 +832,13 @@ function usarCliente(id) { document.getElementById('cliente-sel').value = id; pi
 function renderCotizaciones() {
   const t = document.getElementById('tbl-cot');
   const q = (document.getElementById('q-cot').value || '').trim().toLowerCase();
-  const fe = document.getElementById('f-estado').value;
-  const list = [...STATE.cotizaciones].filter(c => (fe === '*' || (c.estado || '') === fe) && (!q || `${c.numero} ${c.unidad && c.unidad.label} ${c.cliente && c.cliente.nombre}`.toLowerCase().includes(q))).sort((a, b) => (b.creada || '').localeCompare(a.creada || ''));
+  const list = [...STATE.cotizaciones].filter(c => !q || `${c.numero} ${c.unidad && c.unidad.label} ${c.cliente && c.cliente.nombre}`.toLowerCase().includes(q)).sort((a, b) => (b.creada || '').localeCompare(a.creada || ''));
   document.getElementById('cot-info').textContent = `${list.length} de ${STATE.cotizaciones.length} cotizaciones`;
-  if (!list.length) { t.innerHTML = `<tr><td class="hint" style="padding:14px;">${STATE.cotizaciones.length ? 'Ninguna cotización coincide con el filtro.' : 'Aún no hay cotizaciones emitidas.'}</td></tr>`; return; }
-  t.innerHTML = '<tr><th>N°</th><th>Emitida</th><th>Unidad</th><th>Tipología</th><th>Cliente</th><th>Estado</th><th class="r">Lista UF</th><th class="r">Desc. UF</th><th class="r">Total UF</th><th class="r">Total $</th><th>Vendedor</th><th></th></tr>' + list.map(c => {
+  if (!list.length) { t.innerHTML = '<tr><td class="hint" style="padding:14px;">Aún no hay cotizaciones emitidas.</td></tr>'; return; }
+  t.innerHTML = '<tr><th>N°</th><th>Emitida</th><th>Unidad</th><th>Tipología</th><th>Cliente</th><th class="r">Lista UF</th><th class="r">Desc. UF</th><th class="r">Total UF</th><th class="r">Total $</th><th>Vendedor</th><th></th></tr>' + list.map(c => {
     const tt = c.totales || {}; const u = c.unidad || {}; const cl = c.cliente || {};
-    return `<tr><td><b>${esc(c.numero)}</b></td><td>${fmtDT(c.creada)}</td><td>${esc(u.label)} · ${u.piso}°</td><td>${esc(u.tipologia)}</td><td>${esc(cl.nombre) || '<span class="hint" style="margin:0">sin cliente</span>'}</td><td>${estadoBadge(c.estado)}${c.nota ? ` <span class="hint" style="margin:0" title="${esc(c.nota)}">✎</span>` : ''}</td><td class="r">${tt.lista != null ? fmt0(tt.lista) : ''}</td><td class="r">${c.aplica ? '− ' + fmt0(tt.descuento || 0) : '<span class="badge no">sin dcto</span>'}</td><td class="r"><b>${tt.total != null ? fmt0(tt.total) : ''}</b></td><td class="r">${c.uf && tt.total != null ? fmtCLP(tt.total * c.uf) : '—'}</td><td>${esc(c.vendedor && c.vendedor.nombre)}</td><td style="white-space:nowrap;"><button class="btn-secondary btn-sm" onclick="verCotizacion('${c.id}')">Ver</button> <button class="btn-secondary btn-sm" onclick="editarCotizacion('${c.id}')">Estado / cliente</button>${isAdmin() ? ` <button class="btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="borrarCotizacion('${c.id}')">Eliminar</button>` : ''}</td></tr>`;
+    return `<tr><td><b>${esc(c.numero)}</b></td><td>${fmtDT(c.creada)}</td><td>${esc(u.label)} · ${u.piso}°</td><td>${esc(u.tipologia)}</td><td>${esc(cl.nombre)}</td><td class="r">${tt.lista != null ? fmt0(tt.lista) : ''}</td><td class="r">${c.aplica ? '− ' + fmt0(tt.descuento || 0) : '<span class="badge no">sin dcto</span>'}</td><td class="r"><b>${tt.total != null ? fmt0(tt.total) : ''}</b></td><td class="r">${c.uf && tt.total != null ? fmtCLP(tt.total * c.uf) : '—'}</td><td>${esc(c.vendedor && c.vendedor.nombre)}</td><td style="white-space:nowrap;"><button class="btn-secondary btn-sm" onclick="verCotizacion('${c.id}')">Ver</button>${isAdmin() ? ` <button class="btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="borrarCotizacion('${c.id}')">Eliminar</button>` : ''}</td></tr>`;
   }).join('');
-}
-// ----- estado comercial y cliente de una cotización emitida -----
-const ESTADOS = [['', 'Sin estado'], ['bloqueado', 'Bloqueado'], ['reservado', 'Reservado'], ['promesa', 'Promesa']];
-const estadoLabel = e => (ESTADOS.find(x => x[0] === (e || '')) || ESTADOS[0])[1];
-const estadoBadge = e => `<span class="badge ${e ? 'e-' + e : 'e-none'}">${estadoLabel(e)}</span>`;
-let editId = null, editEstado = '';
-function editarCotizacion(id) {
-  const c = STATE.cotizaciones.find(x => x.id === id); if (!c) return;
-  editId = id; editEstado = c.estado || '';
-  const cl = c.cliente || {};
-  document.getElementById('edit-title').textContent = `Cotización ${c.numero}`;
-  document.getElementById('edit-sub').textContent = `${(c.unidad && c.unidad.label) || ''} · piso ${(c.unidad && c.unidad.piso) || ''}° · emitida el ${fmtDT(c.creada)}${c.estadoFecha ? ` · estado actualizado el ${fmtDT(c.estadoFecha)} por ${c.estadoPor || ''}` : ''}`;
-  renderEditEstados();
-  const sel = document.getElementById('edit-cli-sel');
-  sel.innerHTML = '<option value="">— escribir a mano —</option>' + [...STATE.clientes].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(x => `<option value="${x.id}">${esc(x.nombre)}${x.rut ? ' · ' + esc(x.rut) : ''}</option>`).join('');
-  const guardado = cl.id ? STATE.clientes.find(x => x.id === cl.id) : null;
-  sel.value = guardado ? cl.id : '';
-  document.getElementById('edit-nombre').value = cl.nombre || (guardado && guardado.nombre) || ''; document.getElementById('edit-rut').value = cl.rut || (guardado && guardado.rut) || ''; document.getElementById('edit-contacto').value = cl.contacto || (guardado && guardado.contacto) || '';
-  document.getElementById('edit-guardar-cli').checked = false;
-  document.getElementById('edit-nota').value = c.nota || '';
-  document.getElementById('edit-bg').classList.add('open');
-  document.getElementById('edit-nombre').focus();
-}
-function renderEditEstados() {
-  document.getElementById('edit-estados').innerHTML = ESTADOS.map(([v, l]) => `<button class="${v === editEstado ? 'active' : ''}" onclick="editEstado='${v}'; renderEditEstados()">${l}</button>`).join('');
-}
-function editPickCliente(id) {
-  const x = STATE.clientes.find(c => c.id === id); if (!x) return;
-  document.getElementById('edit-nombre').value = x.nombre; document.getElementById('edit-rut').value = x.rut || ''; document.getElementById('edit-contacto').value = x.contacto || '';
-}
-function cerrarEdicion() { document.getElementById('edit-bg').classList.remove('open'); editId = null; }
-async function guardarEdicion() {
-  const c = STATE.cotizaciones.find(x => x.id === editId); if (!c) return;
-  const nombre = document.getElementById('edit-nombre').value.trim(), rut = document.getElementById('edit-rut').value.trim(), contacto = document.getElementById('edit-contacto').value.trim();
-  let clId = document.getElementById('edit-cli-sel').value || null;
-  const selCli = clId && STATE.clientes.find(x => x.id === clId);
-  if (selCli && selCli.nombre !== nombre) clId = null;      // se cambió el nombre a mano: ya no es el cliente guardado
-  try {
-    if (!clId && nombre && document.getElementById('edit-guardar-cli').checked) {
-      const nuevo = await api('POST', '/api/clientes', { nombre, rut, contacto });
-      clId = nuevo.id;
-    }
-    await api('PATCH', '/api/cotizaciones/' + editId, { estado: editEstado, cliente: { id: clId, nombre, rut, contacto }, nota: document.getElementById('edit-nota').value });
-    cerrarEdicion();
-    toast(`Cotización ${c.numero} actualizada`);
-    await loadState();
-  } catch (e) { if (e.message !== 'PIN' && e.message !== 'login') toast('No se pudo guardar: ' + e.message, true); }
 }
 async function borrarCotizacion(id) {
   const c = STATE.cotizaciones.find(x => x.id === id); if (!c || !isAdmin()) return;
@@ -847,7 +862,7 @@ async function verCotizacion(id) {
     const v = c.vendedor || {}; document.getElementById('v-nombre').value = v.nombre || ''; document.getElementById('v-fono').value = v.fono || ''; document.getElementById('v-email').value = v.email || '';
     viewingId = c.id; docNumberStr = c.numero;
     const vb = document.getElementById('viewing'); vb.style.display = 'block';
-    vb.innerHTML = `Revisando la cotización <b>${esc(c.numero)}</b> ${estadoBadge(c.estado)} emitida el ${fmtDT(c.creada)}. <button class="btn-primary btn-sm" onclick="window.print()">Reimprimir PDF</button> <button class="btn-secondary btn-sm" onclick="limpiar()">Cerrar</button><div class="hint" style="margin:4px 0 0 0">Si cambias algo y pulsas "Emitir PDF" se creará una cotización nueva con otro número.</div>`;
+    vb.innerHTML = `Revisando la cotización <b>${esc(c.numero)}</b> emitida el ${fmtDT(c.creada)}. <button class="btn-primary btn-sm" onclick="window.print()">Reimprimir PDF</button> <button class="btn-secondary btn-sm" onclick="limpiar()">Cerrar</button><div class="hint" style="margin:4px 0 0 0">Si cambias algo y pulsas "Emitir PDF" se creará una cotización nueva con otro número.</div>`;
     showView('cotizar'); render3D(); render();
   } catch (e) { toast('No se pudo cargar: ' + e.message, true); }
 }
@@ -1013,7 +1028,7 @@ function showTip3D(ev, idx) {
   const el = document.getElementById('v3d-tip');
   if (b.sold) {
     const bl = STATE.blocked[uKey(u)] || {};
-    el.innerHTML = `<div class="tt-h"><span class="tt-sw" style="background:${SOLD_COLOR}"></span>${uLabel(u)} · ${esc(u.tipologia)}</div><div class="tt-s">Piso ${u.piso}° · ${esc(u.orientacion)}</div><div class="tt-ticket" style="color:#f87171">VENDIDO</div><div class="tt-s">${esc(bl.motivo || '')} ${bl.fecha ? '· ' + fmtDT(bl.fecha) : ''}</div><div class="tt-s" style="font-style:italic;opacity:0.7;margin-top:2px;">no admite nuevas cotizaciones</div>`;
+    el.innerHTML = `<div class="tt-h"><span class="tt-sw" style="background:${SOLD_COLOR}"></span>${uLabel(u)} · ${esc(u.tipologia)}</div><div class="tt-s">Piso ${u.piso}° · ${esc(u.orientacion)}</div><div class="tt-ticket" style="color:#f87171">VENDIDO · ${estadoLabel(ventaEstado(bl)).toUpperCase()}</div><div class="tt-s">${bl.cliente && bl.cliente.nombre ? esc(bl.cliente.nombre) + ' · ' : ''}${bl.estadoFecha || bl.fecha ? 'desde ' + fmtDT(bl.estadoFecha || bl.fecha).slice(0, 10) : ''}${ventaNota(bl) ? ' · ' + esc(ventaNota(bl)) : ''}</div><div class="tt-s" style="font-style:italic;opacity:0.7;margin-top:2px;">no admite nuevas cotizaciones</div>`;
   } else {
     el.innerHTML = `<div class="tt-h"><span class="tt-sw" style="background:${tipoColor[u.tipologia] || '#94a3b8'}"></span>${uLabel(u)} · ${esc(u.tipologia)}${uLabel(u) === '10-O' ? ' · Punta oriente' : ''}</div>
     <div class="tt-s">Piso ${u.piso}° · <b style="color:white">${esc(u.orientacion)}</b> · ${esc(u.categoria)} · ficha tipo ${u.ficha}</div>
@@ -1401,14 +1416,15 @@ function renderInforme() {
   const nuevos = STATE.clientes.filter(c => c.creado && new Date(c.creado).getTime() >= desde).sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
   const MAX_NUEVOS = 60;
   const nCotCli = {}; STATE.cotizaciones.forEach(c => { const k = c.cliente && c.cliente.id; if (k) nCotCli[k] = (nCotCli[k] || 0) + 1; });
-  // cotizaciones por estado comercial
-  const EST_COLOR = { promesa: REP.navy, reservado: REP.gold, bloqueado: '#93c5fd', '': REP.free };
+  // ventas por estado comercial
+  const EST_COLOR = { promesa: REP.navy, reservado: REP.gold, bloqueado: '#93c5fd' };
+  const ventas = soldKeys.map(k => ({ k, u: unitByKey[k], v: STATE.blocked[k], e: ventaEstado(STATE.blocked[k]) }));
   const porEstado = ESTADOS.map(([v, l]) => {
-    const cs = STATE.cotizaciones.filter(c => (c.estado || '') === v);
-    return { v, label: l, n: cs.length, uf: cs.reduce((s, c) => s + ((c.totales && c.totales.total) || 0), 0), semana: cs.filter(c => c.estadoFecha && new Date(c.estadoFecha).getTime() >= weeks[thisW].getTime()).length };
+    const vs = ventas.filter(x => x.e === v);
+    return { v, label: l, n: vs.length, uf: vs.reduce((s, x) => s + ((x.u && x.u.lista) || 0), 0), semana: vs.filter(x => (x.v.estadoFecha || x.v.fecha) && new Date(x.v.estadoFecha || x.v.fecha).getTime() >= weeks[thisW].getTime()).length };
   });
-  const conEstado = STATE.cotizaciones.filter(c => c.estado).sort((a, b) => ESTADOS.findIndex(e => e[0] === b.estado) - ESTADOS.findIndex(e => e[0] === a.estado) || (b.estadoFecha || '').localeCompare(a.estadoFecha || ''));
-  const MAX_EST = 80;
+  const estadoPorTipo = tipos.map(t => { const r = { label: t }; ESTADOS.forEach(([v]) => r[v] = ventas.filter(x => x.u && x.u.tipologia === t && x.e === v).length); return r; });
+  const ventasOrden = [...ventas].sort((a, b) => ESTADOS.findIndex(e => e[0] === b.e) - ESTADOS.findIndex(e => e[0] === a.e) || ((b.v.estadoFecha || b.v.fecha) || '').localeCompare((a.v.estadoFecha || a.v.fecha) || ''));
   const semana = `${ddmm(weeks[thisW])} al ${ddmm(new Date(weeks[thisW].getTime() + 6 * 864e5))}`;
   const delta = (a, b) => b === undefined ? '' : a === b ? 'igual que la semana anterior' : a > b ? `+${a - b} vs. semana anterior` : `${a - b} vs. semana anterior`;
   const now = new Date();
@@ -1420,7 +1436,7 @@ function renderInforme() {
     <div class="kpis">
       <div class="kpi"><div class="k">Cotizaciones esta semana</div><div class="v">${cotW[thisW]}</div><div class="s">${delta(cotW[thisW], cotW[prevW])} · ${STATE.cotizaciones.length} en total</div></div>
       <div class="kpi"><div class="k">Clientes nuevos esta semana</div><div class="v">${cliW[thisW]}</div><div class="s">${delta(cliW[thisW], cliW[prevW])} · ${STATE.clientes.length} registrados</div></div>
-      <div class="kpi"><div class="k">Promesas</div><div class="v">${porEstado[3].n}</div><div class="s">${porEstado[2].n} reservadas · ${porEstado[1].n} bloqueadas</div></div>
+      <div class="kpi"><div class="k">Promesas</div><div class="v">${porEstado[2].n}</div><div class="s">${porEstado[1].n} reservadas · ${porEstado[0].n} bloqueadas</div></div>
       <div class="kpi"><div class="k">Departamentos disponibles</div><div class="v">${nFree}</div><div class="s">de ${UNITS.length} unidades</div></div>
       <div class="kpi"><div class="k">Vendidos (bloqueados)</div><div class="v">${nSold}</div><div class="s">${Math.round(nSold / UNITS.length * 100)}% del edificio</div></div>
     </div>
@@ -1439,13 +1455,15 @@ function renderInforme() {
       </div>
       <div class="legend"><span><i style="background:#ffffff"></i>Disponible</span><span><i style="background:#111827"></i>Vendido</span><span><i style="background:#475569"></i>Core / escaleras</span><span><i style="background:#b6c2d1"></i>Circulación</span></div></div>
     <div class="rep-grid">
-      <div class="fig"><h4>Cotizaciones por estado</h4><div class="sub">Estado comercial de todas las cotizaciones emitidas (${STATE.cotizaciones.length} en total).</div>
-        ${hBarChart([...porEstado].reverse().map(r => ({ label: r.label, v: r.n, color: EST_COLOR[r.v], stroke: !r.v, sub: 'UF ' + fmt0(r.uf) })), { aria: 'Cotizaciones por estado' })}
-        <table class="tbl" style="margin-top:8px;"><tr><th>Estado</th><th class="r">Cotizaciones</th><th class="r">Nuevas esta semana</th><th class="r">UF total</th></tr>
-        ${[...porEstado].reverse().map(r => `<tr><td>${estadoBadge(r.v)}</td><td class="r">${r.n}</td><td class="r">${r.v ? r.semana : '—'}</td><td class="r">${fmt0(r.uf)}</td></tr>`).join('')}</table></div>
-      <div class="fig"><h4>Detalle por estado</h4><div class="sub">Cotizaciones con estado Promesa, Reservado o Bloqueado${conEstado.length > MAX_EST ? ` (se muestran ${MAX_EST} de ${conEstado.length})` : ''}.</div>
-        <table class="tbl"><tr><th>Estado</th><th>N°</th><th>Unidad</th><th>Cliente</th><th class="r">Total UF</th><th>Desde</th></tr>
-        ${conEstado.length ? conEstado.slice(0, MAX_EST).map(c => `<tr><td>${estadoBadge(c.estado)}</td><td><b>${esc(c.numero)}</b></td><td>${esc(c.unidad && c.unidad.label)} · ${(c.unidad && c.unidad.piso) || ''}°</td><td>${esc(c.cliente && c.cliente.nombre) || '—'}</td><td class="r">${c.totales ? fmt0(c.totales.total) : ''}</td><td>${fmtDT(c.estadoFecha).slice(0, 10)}</td></tr>`).join('') : '<tr><td colspan="6" class="hint">Ninguna cotización tiene estado asignado todavía.</td></tr>'}</table></div>
+      <div class="fig"><h4>Ventas por estado</h4><div class="sub">Estado comercial de los ${nSold} departamentos vendidos: Bloqueado → Reservado → Promesa.</div>
+        ${hBarChart([...porEstado].reverse().map(r => ({ label: r.label, v: r.n, color: EST_COLOR[r.v], sub: 'UF lista ' + fmt0(r.uf) })), { aria: 'Ventas por estado' })}
+        <table class="tbl" style="margin-top:8px;"><tr><th>Estado</th><th class="r">Ventas</th><th class="r">Cambios esta semana</th><th class="r">UF lista</th></tr>
+        ${[...porEstado].reverse().map(r => `<tr><td>${estadoBadge(r.v)}</td><td class="r">${r.n}</td><td class="r">${r.semana}</td><td class="r">${fmt0(r.uf)}</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td>Total</td><td class="r">${nSold}</td><td class="r">${porEstado.reduce((s, r) => s + r.semana, 0)}</td><td class="r">${fmt0(porEstado.reduce((s, r) => s + r.uf, 0))}</td></tr></table></div>
+      <div class="fig"><h4>Estado de ventas por tipología</h4><div class="sub">Cuántos departamentos de cada tipología están en cada estado.</div>
+        <table class="tbl"><tr><th>Tipología</th><th class="r">Bloqueado</th><th class="r">Reservado</th><th class="r">Promesa</th><th class="r">Total ventas</th><th class="r">Disponibles</th></tr>
+        ${estadoPorTipo.map(r => { const tot = r.bloqueado + r.reservado + r.promesa, all = UNITS.filter(u => u.tipologia === r.label).length; return `<tr><td><b>${esc(r.label)}</b></td><td class="r">${r.bloqueado}</td><td class="r">${r.reservado}</td><td class="r">${r.promesa}</td><td class="r"><b>${tot}</b></td><td class="r">${all - tot}</td></tr>`; }).join('')}
+        <tr style="font-weight:700;"><td>Total</td><td class="r">${porEstado[0].n}</td><td class="r">${porEstado[1].n}</td><td class="r">${porEstado[2].n}</td><td class="r">${nSold}</td><td class="r">${nFree}</td></tr></table></div>
     </div>
     <div class="fig" style="margin-bottom:16px;"><h4>Nuevos clientes</h4><div class="sub">Clientes registrados en las últimas ${nW} semanas, del más reciente al más antiguo${nuevos.length > MAX_NUEVOS ? ` (se muestran ${MAX_NUEVOS} de ${nuevos.length})` : ''}.</div>
       <table class="tbl"><tr><th>Fecha</th><th>Cliente</th><th>RUT</th><th>Contacto</th><th class="r">Cotizaciones</th><th>Registrado por</th></tr>
@@ -1455,9 +1473,9 @@ function renderInforme() {
         <table class="tbl"><tr><th>Tipología</th><th class="r">Total</th><th class="r">Vendidos</th><th class="r">Disponibles</th><th class="r">% vendido</th></tr>
         ${byTipo.map(r => `<tr><td><b>${esc(r.label)}</b></td><td class="r">${r.a + r.b}</td><td class="r">${r.a}</td><td class="r">${r.b}</td><td class="r">${r.a + r.b ? Math.round(r.a / (r.a + r.b) * 100) : 0}%</td></tr>`).join('')}
         <tr style="font-weight:700;"><td>Total</td><td class="r">${UNITS.length}</td><td class="r">${nSold}</td><td class="r">${nFree}</td><td class="r">${Math.round(nSold / UNITS.length * 100)}%</td></tr></table></div>
-      <div class="fig"><h4>Departamentos vendidos</h4><div class="sub">Detalle de las unidades bloqueadas, de la más reciente a la más antigua.</div>
-        <table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Orientación</th><th>Fecha</th><th>Motivo</th><th>Por</th></tr>
-        ${soldSorted.length ? soldSorted.map(x => `<tr><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${esc(x.u && x.u.orientacion)}</td><td>${fmtDT(x.b.fecha).slice(0, 10)}</td><td>${esc(x.b.motivo)}</td><td>${esc(x.b.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="7" class="hint">No hay departamentos vendidos.</td></tr>'}</table></div>
+      <div class="fig"><h4>Detalle de ventas</h4><div class="sub">Departamentos vendidos agrupados por estado (Promesa, Reservado, Bloqueado) y del cambio más reciente al más antiguo.</div>
+        <table class="tbl"><tr><th>Estado</th><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Cliente</th><th>Desde</th><th>Nota</th><th>Por</th></tr>
+        ${ventasOrden.length ? ventasOrden.map(x => `<tr><td>${estadoBadge(x.e)}</td><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${esc(x.v.cliente && x.v.cliente.nombre) || '—'}</td><td>${fmtDT(x.v.estadoFecha || x.v.fecha).slice(0, 10)}</td><td>${esc(ventaNota(x.v)) || '—'}</td><td>${esc(x.v.estadoPor || x.v.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="8" class="hint">No hay ventas registradas.</td></tr>'}</table></div>
     </div>
     <div class="rep-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Lista de precios ${PRICE_DATE} · ${STATE.cotizaciones.length} cotizaciones · ${STATE.clientes.length} clientes</span></div>`;
   render3D({ report: true, svg: document.getElementById('rep-3d-svg'), cam: { yaw: -32, pitch: 32, explode: 0 } });        // por delante (sur-este)

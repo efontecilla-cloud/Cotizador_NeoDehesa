@@ -12,7 +12,7 @@ Cotizador online para la sala de ventas del proyecto Vía Trapenses (Vitalia Inm
 - Departamentos vendidos: se marcan en negro y no admiten nuevas cotizaciones.
 - Clientes guardados y exportables a Excel.
 - Registro de todas las cotizaciones emitidas, con exportación a Excel y reimpresión.
-- Estado comercial por cotización (**Bloqueado**, **Reservado**, **Promesa**), editable, con filtro por estado; a una cotización emitida se le puede asignar o cambiar el cliente.
+- Ventas: cada departamento vendido tiene un estado comercial (**Bloqueado**, **Reservado**, **Promesa**) que se puede cambiar, un cliente asociado (de la lista guardada o nuevo) y una nota. Filtro por estado y exportación a Excel.
 - **Administración** (solo admin): usuarios y su actividad (en línea / última actividad / últimos ingresos), e **informe de ventas** con cotizaciones y clientes nuevos por semana (lunes a domingo), avance de ventas, vendidos por tipología, mapa 3D de disponibilidad (blanco = disponible, negro = vendido), tablas de resumen y exportación a PDF.
 
 ## Usuarios
@@ -78,12 +78,12 @@ Todas las rutas (salvo login, `/api/me` y `/healthz`) exigen sesión; sin ella r
 | GET | `/api/me` | Usuario de la sesión actual. |
 | GET | `/api/state` | Usuario, bloqueos, clientes y resumen de cotizaciones. |
 | GET | `/api/admin/usuarios` | (admin) Usuarios, estado en línea, última actividad y últimos ingresos. |
-| POST | `/api/bloqueos` | `{ key, blocked, motivo }` marca o libera un departamento. |
+| POST | `/api/bloqueos` | `{ key, blocked, estado, cliente, nota }` registra o actualiza una venta (`blocked: false` la libera). |
 | GET / POST / DELETE | `/api/clientes`, `/api/clientes/:id` | Clientes guardados. |
 | GET | `/api/clientes.xlsx` | Exporta clientes a Excel. |
 | GET / POST | `/api/cotizaciones`, `/api/cotizaciones/:id` | Cotizaciones emitidas (el servidor asigna el número). |
-| PATCH | `/api/cotizaciones/:id` | Cambia estado (`bloqueado`, `reservado`, `promesa` o vacío), cliente o nota de una cotización. |
 | DELETE | `/api/cotizaciones/:id` | (admin) Elimina una cotización. |
+| GET | `/api/ventas.xlsx` | Exporta las ventas (estado, cliente, nota) a Excel. |
 | GET | `/api/cotizaciones.xlsx` | Exporta cotizaciones a Excel. |
 | GET | `/api/uf` | Valor UF del día (caché de 6 horas). |
 | GET / POST | `/api/backup`, `/api/restore` | (admin) Respaldo y restauración de la base de datos. |
