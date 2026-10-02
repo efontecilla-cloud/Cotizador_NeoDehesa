@@ -257,19 +257,37 @@ app.get('/api/cotizaciones.xlsx', (req, res) => {
   sendXlsx(res, rows, 'Cotizaciones', 'Cotizaciones Via Trapenses');
 });
 
-// ---------- valor UF (mindicador.cl, con caché) ----------
+// ---------- valor UF (varias fuentes, con caché) ----------
+// Se consultan en orden y se usa la primera que responda; mindicador.cl a veces no responde por HTTPS.
+const UF_SOURCES = [
+  { fuente: 'mindicador.cl', url: 'https://mindicador.cl/api/uf',
+    parse: j => { const s = j.serie && j.serie[0]; return s && { valor: Number(s.valor), fecha: String(s.fecha).slice(0, 10) }; } },
+  { fuente: 'boostr.cl', url: 'https://api.boostr.cl/economy/indicator/uf.json',
+    parse: j => j.data && { valor: Number(j.data.value), fecha: String(j.data.date).slice(0, 10) } },
+  { fuente: 'gael.cloud', url: 'https://api.gael.cloud/general/public/monedas/UF',
+    parse: j => j.Valor && { valor: Number(String(j.Valor).replace(/\./g, '').replace(',', '.')), fecha: String(j.Fecha).slice(0, 10) } }
+];
+async function fetchUF() {
+  const errores = [];
+  for (const src of UF_SOURCES) {
+    try {
+      const r = await fetch(src.url, { headers: { 'accept': 'application/json', 'user-agent': 'cotizador-via-trapenses' }, signal: AbortSignal.timeout(8000) });
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const d = src.parse(await r.json());
+      if (!d || !(d.valor > 0)) throw new Error('respuesta sin valor');
+      return { valor: d.valor, fecha: d.fecha, fuente: src.fuente };
+    } catch (e) { errores.push(`${src.fuente}: ${e.message}`); }
+  }
+  throw new Error(errores.join(' · '));
+}
 let ufCache = { at: 0, data: null };
 app.get('/api/uf', async (req, res) => {
   if (ufCache.data && Date.now() - ufCache.at < UF_CACHE_MS) return res.json(ufCache.data);
   try {
-    const r = await fetch('https://mindicador.cl/api/uf', { headers: { 'accept': 'application/json' } });
-    if (!r.ok) throw new Error('HTTP ' + r.status);
-    const j = await r.json();
-    const s = (j.serie && j.serie[0]) || null;
-    if (!s) throw new Error('sin serie');
-    ufCache = { at: Date.now(), data: { valor: s.valor, fecha: String(s.fecha).slice(0, 10), fuente: 'mindicador.cl' } };
+    ufCache = { at: Date.now(), data: await fetchUF() };
     res.json(ufCache.data);
   } catch (e) {
+    console.error('UF no disponible:', e.message);
     if (ufCache.data) return res.json(Object.assign({ stale: true }, ufCache.data));
     res.status(502).json({ error: 'No se pudo obtener la UF: ' + e.message });
   }

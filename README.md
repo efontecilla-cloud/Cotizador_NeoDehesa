@@ -8,7 +8,7 @@ Cotizador online para la sala de ventas del proyecto Vía Trapenses (Vitalia Inm
 - Cotización en PDF de dos páginas: cotización + ficha del departamento (planta y ubicación).
 - Estacionamiento (UF 450) y bodega (UF 95) como adicionales.
 - Plan de pago por defecto: 10 % pie al firmar + 10 % pie en 18 cuotas + 80 % crédito hipotecario.
-- Valor UF del día obtenido automáticamente (mindicador.cl), editable.
+- Valor UF del día obtenido automáticamente (mindicador.cl, con respaldo en boostr.cl y gael.cloud), editable.
 - Departamentos vendidos: se marcan en negro y no admiten nuevas cotizaciones.
 - Clientes guardados y exportables a Excel.
 - Registro de todas las cotizaciones emitidas, con exportación a Excel y reimpresión.
@@ -60,7 +60,7 @@ npm start
 1. En Render: **New → Web Service**, conectar este repositorio de GitHub.
 2. Runtime **Node**, build `npm install`, start `node server.js` (o usar el `render.yaml` incluido como Blueprint).
 3. Variables de entorno:
-   - `DATA_DIR`: carpeta donde se guarda `db.json`.
+   - `DATA_DIR`: carpeta donde se guarda `db.json`. Con el disco persistente debe ser su ruta de montaje (`/var/data`).
    - `CLAVE_LEONOR` y `CLAVE_EXEQUIEL`: contraseñas de los usuarios (obligatorias para poder ingresar).
    - `USERS` (opcional): lista completa de usuarios y contraseñas en JSON (ver arriba).
    - `ADMIN_PIN` (opcional): si se define, marcar vendidos, guardar clientes y emitir cotizaciones piden además ese PIN una vez por sesión.

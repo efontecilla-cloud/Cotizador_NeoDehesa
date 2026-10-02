@@ -290,7 +290,7 @@
     <div class="row"><label></label><button class="btn-secondary btn-sm" onclick="guardarCliente()">Guardar cliente</button><span class="hint" style="margin:0" id="cliente-status"></span></div>
     <div class="row"><label>Fecha</label><input type="date" id="fecha" onchange="render()"></div>
     <div class="row"><label>Valor UF ($)</label><input type="number" class="num" id="uf" step="0.01" placeholder="ej. 39841,72" oninput="render()"></div>
-    <div class="hint" id="uf-hint">Se obtiene automáticamente del día (mindicador.cl); puedes corregirlo a mano.</div>
+    <div class="hint" id="uf-hint">Se obtiene automáticamente del día; puedes corregirlo a mano.</div>
     <div class="row"><label>Validez (días)</label><input type="number" class="short" id="validez" value="7" min="1" oninput="render()"></div>
 
     <label class="switch"><input type="checkbox" id="aplica-desc" checked onchange="render(); render3D()"><div><b>Aplicar descuento</b><div class="s">Si está desactivado, la cotización se emite a precio de lista y no menciona el descuento.</div></div></label>
