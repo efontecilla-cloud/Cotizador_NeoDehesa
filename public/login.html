@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ingreso — Cotizador Vía Trapenses</title>
+<style>
+  :root { --navy: #0b2a5b; --navy-2: #163a74; --ink: #1f2937; --muted: #64748b; --line: #e2e8f0; --bg: #f3f5f8; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Roboto, -apple-system, Helvetica, Arial, sans-serif; margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; background: linear-gradient(160deg, var(--navy) 0%, #0f3a7a 60%, #1b4d99 100%); color: var(--ink); font-size: 14px; padding: 16px; }
+  .card { background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.25); width: 100%; max-width: 380px; padding: 28px 28px 24px 28px; }
+  .logo { display: block; height: 46px; margin: 0 auto 6px auto; }
+  h1 { font-size: 15px; letter-spacing: 2px; color: var(--navy); text-align: center; margin: 8px 0 2px 0; }
+  .sub { text-align: center; color: var(--muted); font-size: 12px; margin-bottom: 22px; }
+  label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 4px 0; }
+  input { width: 100%; padding: 10px 11px; border: 1px solid #cbd5e1; border-radius: 7px; font-size: 14px; }
+  input:focus { outline: 2px solid var(--navy); border-color: var(--navy); }
+  button { width: 100%; margin-top: 18px; border: none; border-radius: 7px; padding: 11px; font-size: 14px; font-weight: 600; background: var(--navy); color: white; cursor: pointer; }
+  button:hover { background: var(--navy-2); }
+  button:disabled { opacity: 0.6; cursor: default; }
+  .err { background: #fee2e2; color: #991b1b; border-left: 3px solid #ef4444; padding: 7px 10px; border-radius: 5px; font-size: 12.5px; margin-top: 14px; display: none; }
+  .foot { text-align: center; color: var(--muted); font-size: 11px; margin-top: 18px; }
+</style>
+</head>
+<body>
+<form class="card" id="f" autocomplete="on">
+  <img class="logo" src="logo.png" alt="Vía Trapenses">
+  <h1>COTIZADOR VÍA TRAPENSES</h1>
+  <div class="sub">Sala de ventas · Vitalia Inmobiliaria</div>
+  <label for="usuario">Usuario</label>
+  <input type="text" id="usuario" name="username" autocomplete="username" autofocus required>
+  <label for="clave">Contraseña</label>
+  <input type="password" id="clave" name="password" autocomplete="current-password" required>
+  <div class="err" id="err"></div>
+  <button type="submit" id="btn">Ingresar</button>
+  <div class="foot">Acceso restringido a la sala de ventas.</div>
+</form>
+<script>
+  // Si ya hay sesión, pasa directo al cotizador.
+  fetch('/api/me').then(r => { if (r.ok) location.replace('/'); }).catch(() => {});
+  const f = document.getElementById('f'), err = document.getElementById('err'), btn = document.getElementById('btn');
+  f.addEventListener('submit', async ev => {
+    ev.preventDefault();
+    err.style.display = 'none'; btn.disabled = true; btn.textContent = 'Ingresando…';
+    try {
+      const r = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ usuario: document.getElementById('usuario').value, clave: document.getElementById('clave').value }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || ('Error ' + r.status));
+      location.replace('/');
+    } catch (e) {
+      err.textContent = e.message; err.style.display = 'block';
+      btn.disabled = false; btn.textContent = 'Ingresar';
+      document.getElementById('clave').value = ''; document.getElementById('clave').focus();
+    }
+  });
+</script>
+</body>
+</html>

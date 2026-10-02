@@ -11,7 +11,15 @@ services:
         value: "20"
       - key: DATA_DIR
         value: /opt/render/project/src/data
-      # Opcional: PIN para marcar vendidos, guardar clientes y emitir cotizaciones
+      # Contraseñas de los usuarios: definirlas en el panel de Render (Environment), nunca en este archivo.
+      - key: CLAVE_LEONOR
+        sync: false
+      - key: CLAVE_EXEQUIEL
+        sync: false
+      # Opcional: lista completa de usuarios y contraseñas (JSON, ver README)
+      # - key: USERS
+      #   value: '[{"usuario":"Leonor","clave":"...","rol":"vendedor","nombre":"Leonor Olavarria"},{"usuario":"Exequiel","clave":"...","rol":"admin","nombre":"Exequiel"}]'
+      # Opcional: PIN adicional para marcar vendidos, guardar clientes y emitir cotizaciones
       # - key: ADMIN_PIN
       #   value: "1234"
     # Para que los datos sobrevivan a los redeploys, agrega un disco persistente (plan Starter o superior)

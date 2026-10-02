@@ -160,10 +160,52 @@
   .ficha-key img { max-width: 100%; max-height: 42mm; object-fit: contain; display: inline-block; }
   .ficha-note { font-size: 9.5px; color: #475569; margin-top: 10px; line-height: 1.45; border-top: 1px solid var(--line); padding-top: 8px; }
 
+  /* ---- administración (usuarios + informe) ---- */
+  .topnav .right span { white-space: nowrap; }
+  .topnav .user { display: inline-flex; align-items: center; gap: 6px; }
+  .fig svg.chart.donut { max-width: 300px; margin: 0 auto; }
+  .topnav .user .btn-out { background: rgba(255,255,255,0.14); color: white; padding: 4px 9px; font-size: 11px; border-radius: 5px; }
+  .topnav .user .btn-out:hover { background: rgba(255,255,255,0.26); }
+  .badge.on { background: #d1fae5; color: #065f46; } .badge.adm { background: #fef3c7; color: #78350f; }
+  .rep-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; border-bottom: 3px solid var(--navy); padding-bottom: 10px; margin-bottom: 14px; }
+  .rep-head img { height: 40px; display: block; }
+  .rep-head h1 { margin: 0; font-size: 20px; letter-spacing: 2px; color: var(--navy); }
+  .rep-head .meta { font-size: 11px; color: var(--muted); text-align: right; line-height: 1.5; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .kpi .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
+  .kpi .v { font-size: 26px; font-weight: 700; color: var(--navy); margin-top: 2px; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .kpi .s { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .rep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .rep-grid.one { grid-template-columns: 1fr; }
+  .fig { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; break-inside: avoid; }
+  .fig h4 { margin: 0 0 2px 0; font-size: 13px; color: var(--navy); }
+  .fig .sub { font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+  .fig svg.chart { width: 100%; height: auto; display: block; overflow: visible; font-family: "Segoe UI", Roboto, -apple-system, sans-serif; }
+  .fig svg.chart .grid { stroke: #e2e8f0; stroke-width: 1; }
+  .fig svg.chart .axis { stroke: #cbd5e1; stroke-width: 1; }
+  .fig svg.chart .tick { font-size: 10px; fill: #64748b; }
+  .fig svg.chart .val { font-size: 10px; fill: #334155; font-weight: 600; }
+  .fig svg.chart .lbl { font-size: 11px; fill: #1f2937; }
+  .fig svg.chart .bar:hover { filter: brightness(0.85); }
+  .fig .legend { margin-top: 4px; }
+  .fig .legend i { border-radius: 3px; }
+  .chart-tip { position: fixed; z-index: 90; background: #0f172a; color: white; padding: 6px 9px; border-radius: 6px; font-size: 11.5px; pointer-events: none; display: none; box-shadow: 0 6px 18px rgba(0,0,0,0.25); white-space: nowrap; }
+  .rep-3d { border: 2px solid #cbd5e1; border-radius: 8px; background: linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%); overflow: hidden; }
+  .rep-3d svg { width: 100%; height: 380px; display: block; }
+  .rep-3d svg polygon { stroke: rgba(15,23,42,0.45); stroke-width: 0.014; stroke-linejoin: round; }
+  .rep-3d svg text { pointer-events: none; font-family: "Segoe UI", Roboto, -apple-system, sans-serif; }
+  .rep-3d svg .flabel { font-size: 0.26px; font-weight: 700; fill: #334155; }
+  .rep-3d svg .u-id { font-size: 0.2px; font-weight: 700; fill: rgba(15,23,42,0.85); }
+  .rep-3d svg .sold .u-id { fill: #f1f5f9; }
+  .rep-3d svg .facade-lbl { font-size: 0.3px; font-weight: 700; fill: #64748b; letter-spacing: 0.06px; }
+  .rep-foot { font-size: 10px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 6px; margin-top: 10px; display: flex; justify-content: space-between; }
+  @media (max-width: 900px) { .kpis { grid-template-columns: repeat(2, 1fr); } .rep-grid { grid-template-columns: 1fr; } }
+
   @media print {
     @page { size: A4 portrait; margin: 0; }
     body { background: white; }
-    .topnav, .panel, .sel3d, .v3d-tip, .toast, .no-print { display: none !important; }
+    .topnav, .panel, .sel3d, .v3d-tip, .toast, .no-print, .chart-tip { display: none !important; }
     .view { display: none; }
     #view-cotizar { display: block; }
     .app { display: block; padding: 0; }
@@ -171,6 +213,18 @@
     .sheet { box-shadow: none; width: 210mm; height: 297mm; min-height: 0; margin: 0; overflow: hidden; }
     .sheet.first { page-break-after: always; }
     .sheet.ficha { page-break-before: always; }
+    /* exportación del informe de administración a PDF */
+    body.print-report #view-cotizar { display: none !important; }
+    body.print-report #view-admin { display: block !important; }
+    body.print-report .page { padding: 0; max-width: none; }
+    body.print-report .card { box-shadow: none; border-radius: 0; margin: 0; padding: 14mm 16mm; }
+    body.print-report .card.no-print-report, body.print-report .no-print-report { display: none !important; }
+    body.print-report .kpis { grid-template-columns: repeat(4, 1fr); }
+    body.print-report .rep-3d { break-inside: avoid; }
+    body.print-report .rep-3d svg { height: 300px; }
+    body.print-report .rep-grid { break-inside: avoid; }
+    body.print-report table.tbl { break-inside: auto; }
+    body.print-report table.tbl tr { break-inside: avoid; }
   }
 </style>
 </head>
@@ -183,11 +237,13 @@
     <button id="tab-cotizaciones" onclick="showView('cotizaciones')">Cotizaciones <span id="cnt-cot" class="badge no">0</span></button>
     <button id="tab-clientes" onclick="showView('clientes')">Clientes <span id="cnt-cli" class="badge no">0</span></button>
     <button id="tab-vendidos" onclick="showView('vendidos')">Vendidos <span id="cnt-sold" class="badge no">0</span></button>
+    <button id="tab-admin" onclick="showView('admin')" style="display:none;">Administración</button>
   </div>
   <div class="right">
     <span id="uf-badge">UF: <b>—</b></span>
     <span id="conn"><span class="dot"></span>conectando…</span>
     <span>Lista de precios <b id="price-date">—</b></span>
+    <span class="user" id="user-box"></span>
   </div>
 </div>
 
@@ -278,7 +334,6 @@
       <div class="bar">
         <input type="text" id="q-cot" placeholder="Buscar por N°, unidad o cliente" oninput="renderCotizaciones()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; width:260px;">
         <a class="btn-primary btn-sm" style="text-decoration:none; display:inline-block;" href="/api/cotizaciones.xlsx">Exportar a Excel</a>
-        <a class="btn-secondary btn-sm" style="text-decoration:none; display:inline-block;" href="/api/backup" onclick="return withPinLink(this)">Descargar respaldo</a>
         <span class="hint" id="cot-info" style="margin:0"></span>
       </div>
       <div style="overflow-x:auto;"><table class="tbl" id="tbl-cot"></table></div>
@@ -313,6 +368,36 @@
   </div>
 </div>
 
+<!-- ======================= VISTA: ADMINISTRACIÓN (solo rol admin) ======================= -->
+<div class="view" id="view-admin">
+  <div class="page">
+    <div class="card no-print-report">
+      <h2>Usuarios</h2>
+      <div class="sub">Usuarios del cotizador y su actividad. "En línea" significa actividad en los últimos 10 minutos.</div>
+      <div class="bar">
+        <button class="btn-secondary btn-sm" onclick="loadAdmin()">Actualizar</button>
+        <a class="btn-secondary btn-sm" style="text-decoration:none; display:inline-block;" href="/api/backup" onclick="return withPinLink(this)">Descargar respaldo de datos</a>
+        <span class="hint" id="adm-info" style="margin:0"></span>
+      </div>
+      <div style="overflow-x:auto;"><table class="tbl" id="tbl-usr"></table></div>
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px;">
+        <div><div class="hint" style="font-weight:600; color:#334155;">Últimos ingresos</div><div style="overflow-x:auto;"><table class="tbl" id="tbl-acc"></table></div></div>
+        <div></div>
+      </div>
+    </div>
+
+    <div class="card" id="rep-card">
+      <div class="bar no-print-report">
+        <h2 style="margin:0; flex:1;">Informe de ventas</h2>
+        <label class="hint" style="margin:0">Semanas: <select id="rep-weeks" onchange="renderInforme()" style="padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px;"><option value="8">8</option><option value="12" selected>12</option><option value="26">26</option></select></label>
+        <button class="btn-primary btn-sm" onclick="exportarInforme()">Exportar a PDF</button>
+      </div>
+      <div id="rep"></div>
+    </div>
+  </div>
+</div>
+
+<div class="chart-tip" id="chart-tip"></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -499,18 +584,33 @@ async function api(method, path, body) {
   const opts = { method, headers: { 'Content-Type': 'application/json', 'x-pin': getPin() } };
   if (body !== undefined) opts.body = JSON.stringify(body);
   let r = await fetch(path, opts);
-  if (r.status === 401) { const p = askPin(); if (p === null) throw new Error('PIN'); opts.headers['x-pin'] = p; r = await fetch(path, opts); if (r.status === 401) { toast('PIN incorrecto', true); throw new Error('PIN'); } }
+  if (r.status === 401) {
+    let j = {}; try { j = await r.clone().json(); } catch (e) {}
+    if (j.error === 'login') { location.replace('/login.html'); throw new Error('login'); }     // sesión caducada o cerrada
+    const p = askPin(); if (p === null) throw new Error('PIN'); opts.headers['x-pin'] = p; r = await fetch(path, opts); if (r.status === 401) { toast('PIN incorrecto', true); throw new Error('PIN'); }
+  }
   if (!r.ok) { let m = 'Error ' + r.status; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); }
   return r.json();
 }
+async function salir() { try { await fetch('/api/logout', { method: 'POST' }); } catch (e) {} location.replace('/login.html'); }
+const isAdmin = () => !!(STATE.user && STATE.user.rol === 'admin');
+// Fecha local (no UTC) en formato AAAA-MM-DD: evita que de noche la cotización salga con la fecha de mañana.
+const todayIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 function withPinLink(a) { if (STATE.pinRequired) { const p = getPin() || askPin(); if (p === null) return false; a.href = a.href.split('?')[0] + '?pin=' + encodeURIComponent(p); } return true; }
 async function loadState() {
   try {
     const s = await api('GET', '/api/state');
     STATE = Object.assign({}, s, { online: true });
     setConn(true);
-  } catch (e) { STATE.online = false; setConn(false); }
+    applyUser();
+  } catch (e) { if (e.message === 'login') return; STATE.online = false; setConn(false); }
   refreshAll();
+}
+function applyUser() {
+  const u = STATE.user; if (!u) return;
+  document.getElementById('user-box').innerHTML = `<span class="badge ${isAdmin() ? 'adm' : 'no'}">${isAdmin() ? 'Administrador' : 'Vendedor'}</span><b>${esc(u.nombre || u.usuario)}</b><button class="btn-out" onclick="salir()">Salir</button>`;
+  document.getElementById('tab-admin').style.display = isAdmin() ? '' : 'none';
+  if (!applyUser.done) { applyUser.done = true; loadSeller(); render(); }
 }
 function setConn(ok) { document.getElementById('conn').innerHTML = ok ? '<span class="dot on"></span>en línea' : '<span class="dot off"></span>sin conexión con el servidor'; }
 async function loadUF() {
@@ -530,11 +630,14 @@ function refreshAll() {
   document.getElementById('cnt-cli').textContent = STATE.clientes.length;
   document.getElementById('cnt-sold').textContent = Object.keys(STATE.blocked).length;
   fillSelect(); fillClienteSel(); renderCotizaciones(); renderClientes(); renderVendidos(); render3D(); updateSelbox();
+  if (isAdmin() && document.getElementById('view-admin').classList.contains('active')) renderInforme();
 }
 function showView(name) {
+  if (name === 'admin' && !isAdmin()) { toast('Solo el administrador puede ver esta sección', true); return; }
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + name));
   document.querySelectorAll('.topnav .tabs button').forEach(b => b.classList.toggle('active', b.id === 'tab-' + name));
   if (name !== 'cotizar') loadState();
+  if (name === 'admin') loadAdmin();
 }
 
 // ===== SELECCIÓN =====
@@ -673,8 +776,9 @@ const SLOT3D = {};
   ['03','02','01','13','12','11'].forEach((n, i) => { SLOT3D[`${n}-O`] = { x0: 6*W + C + i*W, x1: 6*W + C + (i+1)*W, y0: yS0, y1: yS1, row: 'S' }; });
   SLOT3D['10-O'] = { x0: L + 0.06, x1: L + 0.06 + PW, y0: -PD/2, y1: PD/2, row: 'E' };
 })();
+let CAM = V3;                 // cámara en uso: V3 en el selector; una cámara fija cuando se dibuja el mapa del informe
 function proj3(x, y, z) {
-  const t = V3.yaw * Math.PI / 180, p = V3.pitch * Math.PI / 180;
+  const t = CAM.yaw * Math.PI / 180, p = CAM.pitch * Math.PI / 180;
   const xr = x * Math.cos(t) - y * Math.sin(t);
   const yr = x * Math.sin(t) + y * Math.cos(t);
   return { sx: xr, sy: -(yr * Math.sin(p) + z * Math.cos(p)), d: yr * Math.cos(p) - z * Math.sin(p) };
@@ -682,22 +786,26 @@ function proj3(x, y, z) {
 function hexToRgb(h) { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }
 function rgbStr(c) { return `rgb(${Math.round(c[0])},${Math.round(c[1])},${Math.round(c[2])})`; }
 function mix(hex, target, k) { const a = hexToRgb(hex), b = hexToRgb(target); return rgbStr([a[0]+(b[0]-a[0])*k, a[1]+(b[1]-a[1])*k, a[2]+(b[2]-a[2])*k]); }
-function floorZ0(piso) { return (parseInt(piso, 10) - 1) * (B3.H + V3.explode); }
+function floorZ0(piso) { return (parseInt(piso, 10) - 1) * (B3.H + (CAM.explode || 0)); }
 function matchesQuery(u, q) { return !q || (uCode(u) + ' ' + uLabel(u) + ' ' + u.tipologia + ' ' + u.orientacion).toLowerCase().replace(/\s/g, '').includes(q); }
 
-function render3D() {
-  const svg = document.getElementById('v3d-svg');
+// Dibuja el edificio. Sin argumentos: selector interactivo de la pestaña Cotizar.
+// Con { report: true, svg } dibuja el mapa de disponibilidad del informe (blanco = disponible, negro = vendido), sin interacción.
+function render3D(opts) {
+  const report = !!(opts && opts.report);
+  const svg = report ? opts.svg : document.getElementById('v3d-svg');
   if (!svg) return;
-  const qEl = document.getElementById('q'); const q = qEl ? (qEl.value || '').trim().toLowerCase().replace(/\s/g, '') : '';
+  CAM = report ? (opts.cam || { yaw: -32, pitch: 32, explode: 0 }) : V3;
+  const q = '';
   const aplica = document.getElementById('aplica-desc').checked;
   const labelMode = (V3.label === 'desc' && aplica) ? 'desc' : 'lista';
-  const t = V3.yaw * Math.PI / 180, p = V3.pitch * Math.PI / 180;
+  const t = CAM.yaw * Math.PI / 180, p = CAM.pitch * Math.PI / 180;
   const view = [-Math.sin(t) * Math.cos(p), -Math.cos(t) * Math.cos(p), Math.sin(p)];
   const Ln = [0.45, -0.55, 0.70]; const Ll = Math.hypot(...Ln); const Lv = Ln.map(v => v / Ll);
   const { W, D, H, G, C, PATIO, SLAB } = B3;
   const boxes = [];
   const addBox = (b) => boxes.push(b);
-  const selKey = selected ? uKey(selected) : null;
+  const selKey = (!report && selected) ? uKey(selected) : null;
   for (let piso = 1; piso <= 6; piso++) {
     const z0 = floorZ0(piso), z1 = z0 + H;
     UNITS.filter(u => u.piso === piso).forEach(u => {
@@ -705,11 +813,12 @@ function render3D() {
       if (!s) return;
       const dim = q ? !matchesQuery(u, q) : (selKey ? uKey(u) !== selKey : false);
       const sold = isSold(u);
-      addBox({ kind: 'unit', x0: s.x0, x1: s.x1, y0: s.y0, y1: s.y1, z0, z1, color: sold ? SOLD_COLOR : (tipoColor[u.tipologia] || '#94a3b8'), u, dim, sold, sel: uKey(u) === selKey, price: labelMode === 'desc' ? u.desc : u.lista });
-      if (u.azotea > 0) addBox({ kind: 'azotea', x0: s.x0 + 0.05, x1: s.x1 - 0.05, y0: s.y0 + 0.05, y1: s.y1 - 0.05, z0: z1, z1: z1 + SLAB, color: sold ? '#4b5563' : '#fde68a', dim });
+      const color = report ? (sold ? '#111827' : '#ffffff') : (sold ? SOLD_COLOR : (tipoColor[u.tipologia] || '#94a3b8'));
+      addBox({ kind: 'unit', x0: s.x0, x1: s.x1, y0: s.y0, y1: s.y1, z0, z1, color, u, dim, sold, sel: uKey(u) === selKey, price: labelMode === 'desc' ? u.desc : u.lista });
+      if (u.azotea > 0) addBox({ kind: 'azotea', x0: s.x0 + 0.05, x1: s.x1 - 0.05, y0: s.y0 + 0.05, y1: s.y1 - 0.05, z0: z1, z1: z1 + SLAB, color: sold ? '#4b5563' : (report ? '#e5e7eb' : '#fde68a'), dim });
       if (u.patio > 0) {
         const py0 = s.row === 'N' ? s.y1 : s.y0 - PATIO, py1 = s.row === 'N' ? s.y1 + PATIO : s.y0;
-        addBox({ kind: 'patio', x0: s.x0 + 0.03, x1: s.x1 - 0.03, y0: py0, y1: py1, z0, z1: z0 + SLAB, color: sold ? '#4b5563' : '#bbf7d0', dim });
+        addBox({ kind: 'patio', x0: s.x0 + 0.03, x1: s.x1 - 0.03, y0: py0, y1: py1, z0, z1: z0 + SLAB, color: sold ? '#4b5563' : (report ? '#e5e7eb' : '#bbf7d0'), dim });
       }
     });
     const yN0 = G/2, yN1 = G/2 + D, yS0 = -G/2 - D, yS1 = -G/2;
@@ -737,7 +846,7 @@ function render3D() {
   const gx0 = -0.9, gx1 = B3.L + B3.PW + 0.6, gy0 = -(G/2 + D + PATIO + 0.5), gy1 = G/2 + D + PATIO + 0.5;
   const g = [[gx0,gy0],[gx1,gy0],[gx1,gy1],[gx0,gy1]].map(([x,y]) => proj3(x, y, -0.02));
   g.forEach(track);
-  out += `<polygon points="${g.map(q => q.sx.toFixed(3)+','+q.sy.toFixed(3)).join(' ')}" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="0.02" style="cursor:default" onclick="if (!dragMoved && selected) selectUnit('')"/>`;
+  out += `<polygon points="${g.map(q => q.sx.toFixed(3)+','+q.sy.toFixed(3)).join(' ')}" fill="#e2e8f0" stroke="#cbd5e1" stroke-width="0.02" style="cursor:default"${report ? '' : ` onclick="if (!dragMoved && selected) selectUnit('')"`}/>`;
   const flipX = Math.cos(t) < 0;
   const groundText = (x, y, txt) => {
     const ax = flipX ? [-ex[0], -ex[1]] : ex; const ay = flipX ? ey : [-ey[0], -ey[1]]; const o = proj3(x, y, 0);
@@ -771,9 +880,12 @@ function render3D() {
       const ay = [-ez[0], -ez[1]];
       const m = `matrix(${ax[0].toFixed(4)} ${ax[1].toFixed(4)} ${ay[0].toFixed(4)} ${ay[1].toFixed(4)} ${origin.sx.toFixed(3)} ${origin.sy.toFixed(3)})`;
       const scale = Math.min(1, fw / 1.0);
-      label = `<g transform="${m}"><text class="u-id" x="${(fw/2).toFixed(3)}" y="${(H*0.40).toFixed(3)}" text-anchor="middle" font-size="${(0.19*scale).toFixed(3)}">${uLabel(b.u)} ${tipoTag[b.u.tipologia] || ''}</text><text class="u-pr" x="${(fw/2).toFixed(3)}" y="${(H*0.78).toFixed(3)}" text-anchor="middle" font-size="${(0.2*scale).toFixed(3)}">${b.sold ? 'VENDIDO' : fmt0(b.price)}</text></g>`;
+      if (report) label = `<g transform="${m}"><text class="u-id" x="${(fw/2).toFixed(3)}" y="${(H*0.47).toFixed(3)}" text-anchor="middle" font-size="${(0.2*scale).toFixed(3)}">${uLabel(b.u)}</text><text class="u-id" x="${(fw/2).toFixed(3)}" y="${(H*0.80).toFixed(3)}" text-anchor="middle" font-size="${(0.15*scale).toFixed(3)}">${tipoTag[b.u.tipologia] || ''}</text></g>`;
+      else label = `<g transform="${m}"><text class="u-id" x="${(fw/2).toFixed(3)}" y="${(H*0.40).toFixed(3)}" text-anchor="middle" font-size="${(0.19*scale).toFixed(3)}">${uLabel(b.u)} ${tipoTag[b.u.tipologia] || ''}</text><text class="u-pr" x="${(fw/2).toFixed(3)}" y="${(H*0.78).toFixed(3)}" text-anchor="middle" font-size="${(0.2*scale).toFixed(3)}">${b.sold ? 'VENDIDO' : fmt0(b.price)}</text></g>`;
     }
-    if (isUnit) {
+    if (report) {
+      out += `<g class="${b.sold ? 'sold' : ''}">${faces}${label}</g>`;
+    } else if (isUnit) {
       out += `<g class="unit3d${b.dim ? ' dim' : ''}${b.sel ? ' sel' : ''}${b.sold ? ' sold' : ''}" onmouseenter="showTip3D(event,${idx})" onmousemove="moveTip3D(event)" onmouseleave="hideTip3D()" onclick="onUnitClick('${uKey(b.u)}')">${faces}${label}</g>`;
     } else if (b.kind === 'azotea' || b.kind === 'patio') {
       out += `<g class="${b.dim ? 'unit3d dim' : ''}" style="pointer-events:none">${faces}</g>`;
@@ -782,7 +894,7 @@ function render3D() {
       out += `<g onmouseenter="showTipText(event,'${tip} · Piso ${b.piso}°')" onmousemove="moveTip3D(event)" onmouseleave="hideTip3D()">${faces}</g>`;
     }
   });
-  window._boxes3D = boxes;
+  if (!report) window._boxes3D = boxes;
   const flAnchor = ex[0] >= 0 ? 'end' : 'start';
   const flY = Math.cos(t) >= 0 ? -(G/2 + D) : (G/2 + D);
   for (let piso = 1; piso <= 6; piso++) {
@@ -792,6 +904,7 @@ function render3D() {
   const pad = 0.9;
   svg.setAttribute('viewBox', `${(minX - pad - 0.8).toFixed(3)} ${(minY - pad).toFixed(3)} ${(maxX - minX + 2*pad + 0.8).toFixed(3)} ${(maxY - minY + 2*pad).toFixed(3)}`);
   svg.innerHTML = out;
+  CAM = V3;
 }
 function setView3D(yaw, pitch, btn) {
   V3.yaw = yaw; V3.pitch = pitch;
@@ -887,7 +1000,7 @@ function calc() {
 function localNumber() {
   let n = 0;
   try { n = parseInt(localStorage.getItem('nd_cot_seq') || '0', 10) + 1; localStorage.setItem('nd_cot_seq', String(n)); } catch (e) { n = Date.now() % 10000; }
-  const d = document.getElementById('fecha').value || new Date().toISOString().slice(0, 10);
+  const d = document.getElementById('fecha').value || todayIso();
   return `VT-${d.replace(/-/g, '')}-L${String(n).padStart(3, '0')}`;
 }
 function docNumberLabel() { return docNumberStr || 'borrador'; }
@@ -907,7 +1020,7 @@ function render() {
   if (c) { payEl.textContent = 'Suma: ' + fmtP(c.paySum) + (Math.abs(c.paySum - 100) > 0.01 ? ' — debe sumar 100%' : ''); payEl.classList.toggle('bad', Math.abs(c.paySum - 100) > 0.01); }
   if (!c) { sheet.innerHTML = '<div class="empty">Selecciona una unidad en el edificio para generar la cotización.</div>'; ficha.style.display = 'none'; return; }
   const u = c.u;
-  const fechaIso = document.getElementById('fecha').value || new Date().toISOString().slice(0, 10);
+  const fechaIso = document.getElementById('fecha').value || todayIso();
   const fecha = new Date(fechaIso + 'T12:00:00').toLocaleDateString('es-CL', { day: '2-digit', month: 'long', year: 'numeric' });
   const validez = parseInt(document.getElementById('validez').value || '7', 10);
   const cliente = document.getElementById('cliente').value.trim();
@@ -1005,7 +1118,7 @@ function collectPayload(c) {
   const u = c.u;
   const clId = document.getElementById('cliente-sel').value || null;
   return {
-    fecha: document.getElementById('fecha').value || new Date().toISOString().slice(0, 10),
+    fecha: document.getElementById('fecha').value || todayIso(),
     unidad: { key: uKey(u), label: uLabel(u), piso: u.piso, tipologia: u.tipologia, orientacion: u.orientacion, ficha: u.ficha },
     cliente: { id: clId, nombre: document.getElementById('cliente').value.trim(), rut: document.getElementById('rut').value.trim(), contacto: document.getElementById('contacto').value.trim() },
     uf: c.ufv, validez: parseInt(document.getElementById('validez').value || '7', 10), aplica: c.aplica, nEst: c.nEst, nBod: c.nBod,
@@ -1048,20 +1161,187 @@ function limpiar() {
   document.getElementById('n-est').value = 0; document.getElementById('n-bod').value = 0;
   document.getElementById('aplica-desc').checked = true;
   document.getElementById('pay-pie1').value = 10; document.getElementById('pay-pie2').value = 10; document.getElementById('pay-cuotas').value = 18; document.getElementById('pay-credito').value = 80;
-  document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('fecha').value = todayIso();
+  document.getElementById('validez').value = 7;
   document.getElementById('warn').style.display = 'none';
-  const qEl2 = document.getElementById('q'); if (qEl2) qEl2.value = '';
   selectUnit('');
 }
-function saveSeller() { try { localStorage.setItem('nd_seller', JSON.stringify({ n: document.getElementById('v-nombre').value, f: document.getElementById('v-fono').value, e: document.getElementById('v-email').value })); } catch (e) {} }
+// Los datos del vendedor se guardan por usuario conectado; por defecto son los del perfil del usuario.
+const sellerKey = () => 'nd_seller_' + ((STATE.user && STATE.user.usuario) || 'anon');
+function saveSeller() { try { localStorage.setItem(sellerKey(), JSON.stringify({ n: document.getElementById('v-nombre').value, f: document.getElementById('v-fono').value, e: document.getElementById('v-email').value })); } catch (e) {} }
 function loadSeller() {
-  let s = null; try { s = JSON.parse(localStorage.getItem('nd_seller') || 'null'); } catch (e) {}
-  if (!s || !s.n) s = SELLER_DEFAULT;
+  let s = null; try { s = JSON.parse(localStorage.getItem(sellerKey()) || 'null'); } catch (e) {}
+  if (!s || !s.n) s = STATE.user ? { n: STATE.user.nombre, f: STATE.user.fono, e: STATE.user.email } : SELLER_DEFAULT;
   document.getElementById('v-nombre').value = s.n || ''; document.getElementById('v-fono').value = s.f || ''; document.getElementById('v-email').value = s.e || '';
 }
 
+// ===== ADMINISTRACIÓN (solo rol admin): usuarios, informe semanal, mapa de disponibilidad, exportación a PDF =====
+const REP = { navy: '#0b2a5b', gold: '#c9a24a', sold: '#1f2937', free: '#cbd5e1' };
+const pad2 = n => String(n).padStart(2, '0');
+const ymdLocal = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const ddmm = d => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`;
+function weekStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }   // lunes de esa semana
+function lastWeeks(n) { const out = []; let s = weekStart(new Date()); for (let i = 0; i < n; i++) { out.unshift(s); s = new Date(s); s.setDate(s.getDate() - 7); } return out; }
+function countByWeek(items, field, weeks) {
+  const idx = {}; weeks.forEach((w, i) => idx[ymdLocal(w)] = i);
+  const counts = weeks.map(() => 0);
+  items.forEach(it => { if (!it[field]) return; const d = new Date(it[field]); if (isNaN(d)) return; const i = idx[ymdLocal(weekStart(d))]; if (i !== undefined) counts[i] += 1; });
+  return counts;
+}
+function relTime(iso) {
+  if (!iso) return '—';
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (m < 1) return 'ahora'; if (m < 60) return `hace ${m} min`; const h = Math.round(m / 60); if (h < 24) return `hace ${h} h`; return fmtDT(iso);
+}
+async function loadAdmin() {
+  if (!isAdmin()) return;
+  try {
+    const r = await api('GET', '/api/admin/usuarios');
+    const tu = document.getElementById('tbl-usr');
+    tu.innerHTML = '<tr><th>Usuario</th><th>Nombre</th><th>Rol</th><th>Estado</th><th>Última actividad</th><th>Último ingreso</th><th class="r">Sesiones abiertas</th></tr>' + r.usuarios.map(u =>
+      `<tr><td><b>${esc(u.usuario)}</b>${u.esteUsuario ? ' <span class="hint" style="margin:0">(tú)</span>' : ''}</td><td>${esc(u.nombre)}</td><td><span class="badge ${u.rol === 'admin' ? 'adm' : 'no'}">${u.rol === 'admin' ? 'Administrador' : 'Vendedor'}</span></td>
+       <td>${u.enLinea ? '<span class="badge on">En línea</span>' : '<span class="badge no">Desconectado</span>'}</td><td>${relTime(u.ultimaActividad)}</td><td>${fmtDT(u.ultimoIngreso) || '—'}</td><td class="r">${u.sesiones}</td></tr>`).join('');
+    const ta = document.getElementById('tbl-acc');
+    ta.innerHTML = '<tr><th>Fecha</th><th>Usuario</th><th>Resultado</th></tr>' + (r.accesos.length ? r.accesos.slice(0, 12).map(a => `<tr><td>${fmtDT(a.fecha)}</td><td>${esc(a.usuario)}</td><td>${a.ok ? '<span class="badge on">ingresó</span>' : '<span class="badge sold">clave incorrecta</span>'}</td></tr>`).join('') : '<tr><td colspan="3" class="hint">Sin registros.</td></tr>');
+    document.getElementById('adm-info').textContent = `${r.usuarios.filter(u => u.enLinea).length} en línea de ${r.usuarios.length} usuarios`;
+  } catch (e) { if (e.message !== 'login') toast('No se pudo cargar usuarios: ' + e.message, true); }
+  renderInforme();
+}
+
+// --- gráficos SVG (sin librerías: imprimen nítidos y funcionan sin internet) ---
+// Barras verticales agrupadas. series: [{ name, color, values }], labels: eje X.
+function barChart(labels, series, opt) {
+  const o = Object.assign({ w: 560, h: 220, padL: 34, padR: 8, padT: 14, padB: 30 }, opt || {});
+  const max = Math.max(1, ...series.flatMap(s => s.values));
+  const step = max <= 5 ? 1 : max <= 12 ? 2 : max <= 30 ? 5 : max <= 60 ? 10 : Math.ceil(max / 6 / 10) * 10;
+  const top = Math.ceil(max / step) * step;
+  const pw = o.w - o.padL - o.padR, ph = o.h - o.padT - o.padB;
+  const y = v => o.padT + ph - v / top * ph;
+  const groupW = pw / labels.length, gap = 2, barW = Math.max(3, (groupW * 0.72 - gap * (series.length - 1)) / series.length);
+  let s = `<svg class="chart" viewBox="0 0 ${o.w} ${o.h}" role="img" aria-label="${esc(o.aria || '')}">`;
+  for (let v = 0; v <= top; v += step) s += `<line class="grid" x1="${o.padL}" x2="${o.w - o.padR}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="tick" x="${o.padL - 6}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end">${v}</text>`;
+  s += `<line class="axis" x1="${o.padL}" x2="${o.w - o.padR}" y1="${y(0).toFixed(1)}" y2="${y(0).toFixed(1)}"/>`;
+  labels.forEach((lb, i) => {
+    const gx = o.padL + i * groupW + (groupW - (barW * series.length + gap * (series.length - 1))) / 2;
+    series.forEach((se, j) => {
+      const v = se.values[i], x = gx + j * (barW + gap), h = Math.max(0, y(0) - y(v));
+      const tip = `${lb}: ${v} ${se.name.toLowerCase()}`;
+      s += `<rect class="bar" x="${x.toFixed(1)}" y="${(y(0) - h).toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="${Math.min(4, barW / 2)}" fill="${se.color}" onmousemove="chartTip(event,'${esc(tip)}')" onmouseleave="chartTip()"><title>${esc(tip)}</title></rect>`;
+      if (v > 0 && (i === labels.length - 1 || v === max)) s += `<text class="val" x="${(x + barW / 2).toFixed(1)}" y="${(y(v) - 4).toFixed(1)}" text-anchor="middle">${v}</text>`;
+    });
+    if (labels.length <= 14 || i % 2 === 0) s += `<text class="tick" x="${(o.padL + (i + 0.5) * groupW).toFixed(1)}" y="${o.h - o.padB + 14}" text-anchor="middle">${esc(lb)}</text>`;
+  });
+  s += '</svg>';
+  if (series.length > 1) s += `<div class="legend">${series.map(se => `<span><i style="background:${se.color}"></i>${esc(se.name)}</span>`).join('')}</div>`;
+  return s;
+}
+// Barras horizontales apiladas (vendidos vs disponibles por tipología).
+function hStackChart(rows, opt) {
+  const o = Object.assign({ w: 560, rowH: 26, padL: 76, padR: 44, padT: 6 }, opt || {});
+  const max = Math.max(1, ...rows.map(r => r.a + r.b));
+  const pw = o.w - o.padL - o.padR, h = o.padT + rows.length * o.rowH + 4;
+  let s = `<svg class="chart" viewBox="0 0 ${o.w} ${h}" role="img" aria-label="${esc(o.aria || '')}">`;
+  rows.forEach((r, i) => {
+    const y = o.padT + i * o.rowH + 5, bh = o.rowH - 10, wa = r.a / max * pw, wb = r.b / max * pw;
+    s += `<text class="lbl" x="${o.padL - 8}" y="${(y + bh / 2 + 4).toFixed(1)}" text-anchor="end">${esc(r.label)}</text>`;
+    if (r.a > 0) s += `<rect class="bar" x="${o.padL}" y="${y}" width="${Math.max(2, wa).toFixed(1)}" height="${bh}" rx="3" fill="${o.colorA}" onmousemove="chartTip(event,'${esc(r.label)}: ${r.a} ${o.nameA.toLowerCase()}')" onmouseleave="chartTip()"><title>${r.a} ${esc(o.nameA)}</title></rect>`;
+    if (r.b > 0) s += `<rect class="bar" x="${(o.padL + wa + (r.a > 0 ? 2 : 0)).toFixed(1)}" y="${y}" width="${Math.max(2, wb - (r.a > 0 ? 2 : 0)).toFixed(1)}" height="${bh}" rx="3" fill="${o.colorB}" stroke="#94a3b8" stroke-width="0.5" onmousemove="chartTip(event,'${esc(r.label)}: ${r.b} ${o.nameB.toLowerCase()}')" onmouseleave="chartTip()"><title>${r.b} ${esc(o.nameB)}</title></rect>`;
+    s += `<text class="val" x="${(o.padL + wa + wb + 6).toFixed(1)}" y="${(y + bh / 2 + 4).toFixed(1)}">${r.a} / ${r.a + r.b}</text>`;
+  });
+  s += '</svg>';
+  s += `<div class="legend"><span><i style="background:${o.colorA}"></i>${esc(o.nameA)}</span><span><i style="background:${o.colorB}"></i>${esc(o.nameB)}</span><span class="hint" style="margin:0">(vendidos / total)</span></div>`;
+  return s;
+}
+// Anillo de avance de ventas.
+function donut(a, b, labelA, labelB) {
+  const tot = Math.max(1, a + b), r = 46, c = 2 * Math.PI * r, fa = a / tot;
+  const pct = Math.round(fa * 100);
+  return `<svg class="chart donut" viewBox="0 0 240 120" role="img" aria-label="${pct}% ${esc(labelA)}">
+    <circle cx="60" cy="60" r="${r}" fill="none" stroke="${REP.free}" stroke-width="16"/>
+    <circle cx="60" cy="60" r="${r}" fill="none" stroke="${REP.sold}" stroke-width="16" stroke-dasharray="${(c * fa).toFixed(2)} ${c.toFixed(2)}" stroke-dashoffset="0" transform="rotate(-90 60 60)" stroke-linecap="${fa > 0 && fa < 1 ? 'round' : 'butt'}"/>
+    <text x="60" y="58" text-anchor="middle" style="font-size:22px;font-weight:700;fill:#0b2a5b">${pct}%</text>
+    <text x="60" y="74" text-anchor="middle" class="tick">${esc(labelA.toLowerCase())}</text>
+    <rect x="128" y="34" width="12" height="12" rx="3" fill="${REP.sold}"/><text class="lbl" x="146" y="44">${a} ${esc(labelA.toLowerCase())}</text>
+    <rect x="128" y="60" width="12" height="12" rx="3" fill="${REP.free}" stroke="#94a3b8" stroke-width="0.5"/><text class="lbl" x="146" y="70">${b} ${esc(labelB.toLowerCase())}</text>
+    <text class="tick" x="128" y="96">${UNITS.length} unidades en total</text>
+  </svg>`;
+}
+function chartTip(ev, txt) {
+  const el = document.getElementById('chart-tip');
+  if (!ev || !txt) { el.style.display = 'none'; return; }
+  el.textContent = txt; el.style.display = 'block';
+  let x = ev.clientX + 14, y = ev.clientY + 14; const r = el.getBoundingClientRect();
+  if (x + r.width > window.innerWidth - 8) x = ev.clientX - r.width - 10;
+  if (y + r.height > window.innerHeight - 8) y = ev.clientY - r.height - 10;
+  el.style.left = x + 'px'; el.style.top = y + 'px';
+}
+
+function renderInforme() {
+  const el = document.getElementById('rep');
+  if (!el || !isAdmin()) return;
+  const nW = parseInt(document.getElementById('rep-weeks').value, 10) || 12;
+  const weeks = lastWeeks(nW);
+  const labels = weeks.map(w => ddmm(w));
+  const cotW = countByWeek(STATE.cotizaciones, 'creada', weeks);
+  const cliW = countByWeek(STATE.clientes, 'creado', weeks);
+  const thisW = weeks.length - 1, prevW = weeks.length - 2;
+  const soldKeys = Object.keys(STATE.blocked);
+  const soldUnits = soldKeys.map(k => unitByKey[k]).filter(Boolean);
+  const nSold = soldUnits.length, nFree = UNITS.length - nSold;
+  const tipos = Object.keys(tipoColor);
+  const byTipo = tipos.map(t => { const tot = UNITS.filter(u => u.tipologia === t).length, v = soldUnits.filter(u => u.tipologia === t).length; return { label: t, a: v, b: tot - v }; });
+  const soldSorted = soldKeys.map(k => ({ k, u: unitByKey[k], b: STATE.blocked[k] })).sort((x, y) => (y.b.fecha || '').localeCompare(x.b.fecha || ''));
+  const semana = `${ddmm(weeks[thisW])} al ${ddmm(new Date(weeks[thisW].getTime() + 6 * 864e5))}`;
+  const delta = (a, b) => b === undefined ? '' : a === b ? 'igual que la semana anterior' : a > b ? `+${a - b} vs. semana anterior` : `${a - b} vs. semana anterior`;
+  const now = new Date();
+  el.innerHTML = `
+    <div class="rep-head">
+      <div><img src="${LOGO}" alt="Vitalia Inmobiliaria"><div class="hint" style="margin:4px 0 0 0">${esc(PROYECTO.empresa)} · Proyecto ${esc(PROYECTO.nombre)}</div></div>
+      <div><h1>INFORME DE VENTAS</h1><div class="meta">Semana en curso: <b>${semana}</b> (lunes a domingo)<br>Generado el ${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())} por ${esc(STATE.user.nombre || STATE.user.usuario)}</div></div>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="k">Cotizaciones esta semana</div><div class="v">${cotW[thisW]}</div><div class="s">${delta(cotW[thisW], cotW[prevW])} · ${STATE.cotizaciones.length} en total</div></div>
+      <div class="kpi"><div class="k">Clientes nuevos esta semana</div><div class="v">${cliW[thisW]}</div><div class="s">${delta(cliW[thisW], cliW[prevW])} · ${STATE.clientes.length} registrados</div></div>
+      <div class="kpi"><div class="k">Departamentos disponibles</div><div class="v">${nFree}</div><div class="s">de ${UNITS.length} unidades</div></div>
+      <div class="kpi"><div class="k">Vendidos (bloqueados)</div><div class="v">${nSold}</div><div class="s">${Math.round(nSold / UNITS.length * 100)}% del edificio</div></div>
+    </div>
+    <div class="rep-grid">
+      <div class="fig"><h4>Cotizaciones y clientes nuevos por semana</h4><div class="sub">Últimas ${nW} semanas, de lunes a domingo. La semana en curso es la última barra.</div>
+        ${barChart(labels, [{ name: 'Cotizaciones', color: REP.navy, values: cotW }, { name: 'Clientes nuevos', color: REP.gold, values: cliW }], { aria: 'Cotizaciones y clientes nuevos por semana' })}</div>
+      <div class="fig"><h4>Avance de ventas</h4><div class="sub">Unidades vendidas (bloqueadas por la sala de ventas) sobre el total del edificio.</div>
+        ${donut(nSold, nFree, 'Vendidos', 'Disponibles')}
+        <h4 style="margin-top:10px;">Vendidos por tipología</h4>
+        ${hStackChart(byTipo, { nameA: 'Vendidos', nameB: 'Disponibles', colorA: REP.sold, colorB: REP.free, aria: 'Vendidos y disponibles por tipología' })}</div>
+    </div>
+    <div class="fig" style="margin-bottom:16px;"><h4>Mapa del edificio</h4><div class="sub">Blanco = disponible · Negro = vendido (bloqueado). Vista desde la Av. José Alcalde Délano.</div>
+      <div class="rep-3d"><svg id="rep-3d-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg></div>
+      <div class="legend"><span><i style="background:#ffffff"></i>Disponible</span><span><i style="background:#111827"></i>Vendido</span><span><i style="background:#475569"></i>Core / escaleras</span><span><i style="background:#b6c2d1"></i>Circulación</span></div></div>
+    <div class="rep-grid">
+      <div class="fig"><h4>Resumen por tipología</h4><div class="sub">Unidades vendidas y disponibles según tipología.</div>
+        <table class="tbl"><tr><th>Tipología</th><th class="r">Total</th><th class="r">Vendidos</th><th class="r">Disponibles</th><th class="r">% vendido</th></tr>
+        ${byTipo.map(r => `<tr><td><b>${esc(r.label)}</b></td><td class="r">${r.a + r.b}</td><td class="r">${r.a}</td><td class="r">${r.b}</td><td class="r">${r.a + r.b ? Math.round(r.a / (r.a + r.b) * 100) : 0}%</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td>Total</td><td class="r">${UNITS.length}</td><td class="r">${nSold}</td><td class="r">${nFree}</td><td class="r">${Math.round(nSold / UNITS.length * 100)}%</td></tr></table></div>
+      <div class="fig"><h4>Departamentos vendidos</h4><div class="sub">Detalle de las unidades bloqueadas, de la más reciente a la más antigua.</div>
+        <table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Orientación</th><th>Fecha</th><th>Motivo</th><th>Por</th></tr>
+        ${soldSorted.length ? soldSorted.map(x => `<tr><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${esc(x.u && x.u.orientacion)}</td><td>${fmtDT(x.b.fecha).slice(0, 10)}</td><td>${esc(x.b.motivo)}</td><td>${esc(x.b.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="7" class="hint">No hay departamentos vendidos.</td></tr>'}</table></div>
+    </div>
+    <div class="rep-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Lista de precios ${PRICE_DATE} · ${STATE.cotizaciones.length} cotizaciones · ${STATE.clientes.length} clientes</span></div>`;
+  render3D({ report: true, svg: document.getElementById('rep-3d-svg') });
+}
+function exportarInforme() {
+  if (!isAdmin()) return;
+  renderInforme();
+  const d = new Date();
+  const prev = document.title;
+  document.title = `Informe ventas Via Trapenses ${ymdLocal(d)}`;
+  document.body.classList.add('print-report');
+  const done = () => { document.body.classList.remove('print-report'); document.title = prev; window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  setTimeout(() => { window.print(); setTimeout(done, 1500); }, 150);
+}
+
 // ===== INIT =====
-document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
+document.getElementById('fecha').value = todayIso();
 document.getElementById('price-date').textContent = PRICE_DATE;
 document.getElementById('unit-count').textContent = UNITS.length;
 document.getElementById('p-est-lbl').textContent = EXTRAS.est.uf;
