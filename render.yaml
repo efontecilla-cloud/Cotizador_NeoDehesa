@@ -2,7 +2,7 @@ services:
   - type: web
     name: cotizador-via-trapenses
     runtime: node
-    plan: free
+    plan: starter
     buildCommand: npm install
     startCommand: node server.js
     healthCheckPath: /healthz
@@ -10,7 +10,7 @@ services:
       - key: NODE_VERSION
         value: "20"
       - key: DATA_DIR
-        value: /opt/render/project/src/data
+        value: /var/data
       # Contraseñas de los usuarios: definirlas en el panel de Render (Environment), nunca en este archivo.
       - key: CLAVE_LEONOR
         sync: false
@@ -22,9 +22,8 @@ services:
       # Opcional: PIN adicional para marcar vendidos, guardar clientes y emitir cotizaciones
       # - key: ADMIN_PIN
       #   value: "1234"
-    # Para que los datos sobrevivan a los redeploys, agrega un disco persistente (plan Starter o superior)
-    # y apunta DATA_DIR a su ruta de montaje:
-    # disk:
-    #   name: datos
-    #   mountPath: /var/data
-    #   sizeGB: 1
+    # Disco persistente: los datos (db.json) sobreviven a deploys y reinicios. Debe coincidir con DATA_DIR.
+    disk:
+      name: datos
+      mountPath: /var/data
+      sizeGB: 1

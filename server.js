@@ -146,7 +146,8 @@ app.get('/api/state', (req, res) => {
     clientes: db.clientes,
     cotizaciones: db.cotizaciones.map(c => ({
       id: c.id, numero: c.numero, creada: c.creada, fecha: c.fecha, unidad: c.unidad, cliente: c.cliente,
-      aplica: c.aplica, totales: c.totales, vendedor: c.vendedor, uf: c.uf, usuario: c.usuario
+      aplica: c.aplica, totales: c.totales, vendedor: c.vendedor, uf: c.uf, usuario: c.usuario,
+      estado: c.estado || '', estadoFecha: c.estadoFecha || null, estadoPor: c.estadoPor || null, nota: c.nota || ''
     }))
   });
 });
@@ -232,6 +233,30 @@ app.post('/api/cotizaciones', requirePin, (req, res) => {
   saveDb(db);
   res.json({ ok: true, id: c.id, numero });
 });
+// Estado comercial y cliente de una cotización ya emitida (cualquier usuario con sesión).
+const ESTADOS = ['', 'bloqueado', 'reservado', 'promesa'];
+app.patch('/api/cotizaciones/:id', requirePin, (req, res) => {
+  const b = req.body || {};
+  const db = loadDb();
+  const c = db.cotizaciones.find(x => x.id === req.params.id);
+  if (!c) return res.status(404).json({ error: 'no encontrada' });
+  if (b.estado !== undefined) {
+    const e = String(b.estado || '').toLowerCase();
+    if (!ESTADOS.includes(e)) return res.status(400).json({ error: 'estado inválido' });
+    if ((c.estado || '') !== e) {
+      c.estado = e; c.estadoFecha = nowIso(); c.estadoPor = req.user.usuario;
+      c.historial = (c.historial || []).concat([{ fecha: c.estadoFecha, usuario: req.user.usuario, estado: e }]).slice(-50);
+    }
+  }
+  if (b.cliente !== undefined) {
+    const cl = b.cliente || {};
+    c.cliente = { id: cl.id || null, nombre: String(cl.nombre || '').trim(), rut: String(cl.rut || '').trim(), contacto: String(cl.contacto || '').trim() };
+  }
+  if (b.nota !== undefined) c.nota = String(b.nota || '').trim().slice(0, 500);
+  c.actualizada = nowIso();
+  saveDb(db);
+  res.json(c);
+});
 // Solo el administrador puede borrar una cotización (el número no se reutiliza).
 app.delete('/api/cotizaciones/:id', requireAdmin, requirePin, (req, res) => {
   const db = loadDb();
@@ -247,6 +272,7 @@ app.get('/api/cotizaciones.xlsx', (req, res) => {
     'N°': c.numero, 'Fecha': c.fecha, 'Emitida': fmtDate(c.creada),
     'Unidad': c.unidad && c.unidad.label, 'Piso': c.unidad && c.unidad.piso, 'Tipología': c.unidad && c.unidad.tipologia, 'Orientación': c.unidad && c.unidad.orientacion,
     'Cliente': c.cliente && c.cliente.nombre, 'RUT': c.cliente && c.cliente.rut, 'Contacto': c.cliente && c.cliente.contacto,
+    'Estado': c.estado ? c.estado.charAt(0).toUpperCase() + c.estado.slice(1) : '', 'Fecha estado': fmtDate(c.estadoFecha), 'Nota': c.nota || '',
     'Con descuento': c.aplica ? 'Sí' : 'No',
     'Precio lista UF': c.totales && c.totales.lista, 'Descuento UF': c.totales && c.totales.descuento, 'Total UF': c.totales && c.totales.total,
     'Valor UF': c.uf || '', 'Total $': (c.uf && c.totales) ? Math.round(c.totales.total * c.uf) : '',

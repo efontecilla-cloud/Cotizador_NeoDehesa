@@ -167,11 +167,25 @@
   .topnav .user .btn-out { background: rgba(255,255,255,0.14); color: white; padding: 4px 9px; font-size: 11px; border-radius: 5px; }
   .topnav .user .btn-out:hover { background: rgba(255,255,255,0.26); }
   .badge.on { background: #d1fae5; color: #065f46; } .badge.adm { background: #fef3c7; color: #78350f; }
+  /* estados comerciales de una cotización */
+  .badge.e-bloqueado { background: #dbeafe; color: #1e3a8a; } .badge.e-reservado { background: #fef3c7; color: #78350f; } .badge.e-promesa { background: #0b2a5b; color: white; } .badge.e-none { background: #f1f5f9; color: #94a3b8; font-weight: 500; }
+  .modal-bg { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 80; display: none; align-items: center; justify-content: center; padding: 16px; }
+  .modal-bg.open { display: flex; }
+  .modal { background: white; border-radius: 10px; width: 100%; max-width: 520px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); padding: 18px 20px; }
+  .modal h3 { margin: 0 0 2px 0; font-size: 15px; color: var(--navy); }
+  .modal .sub { font-size: 11.5px; color: var(--muted); margin-bottom: 12px; }
+  .modal .row { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .modal .row label { width: 120px; font-size: 12px; color: var(--muted); flex-shrink: 0; }
+  .modal .row input, .modal .row select, .modal .row textarea { flex: 1; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 5px; font-size: 13px; font-family: inherit; }
+  .modal .est-opts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .modal .est-opts button { padding: 6px 12px; font-size: 12px; background: #f1f5f9; color: #334155; border: 2px solid transparent; }
+  .modal .est-opts button.active { border-color: var(--navy); background: white; color: var(--navy); }
+  .modal .foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
   .rep-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; border-bottom: 3px solid var(--navy); padding-bottom: 10px; margin-bottom: 14px; }
   .rep-head img { height: 40px; display: block; }
   .rep-head h1 { margin: 0; font-size: 20px; letter-spacing: 2px; color: var(--navy); }
   .rep-head .meta { font-size: 11px; color: var(--muted); text-align: right; line-height: 1.5; }
-  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 16px; }
   .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
   .kpi .k { font-size: 10px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); }
   .kpi .v { font-size: 26px; font-weight: 700; color: var(--navy); margin-top: 2px; font-variant-numeric: tabular-nums; line-height: 1.1; }
@@ -221,7 +235,8 @@
     body.print-report .page { padding: 0; max-width: none; }
     body.print-report .card { box-shadow: none; border-radius: 0; margin: 0; padding: 14mm 16mm; }
     body.print-report .card.no-print-report, body.print-report .no-print-report { display: none !important; }
-    body.print-report .kpis { grid-template-columns: repeat(4, 1fr); }
+    body.print-report .kpis { grid-template-columns: repeat(5, 1fr); }
+    body.print-report .kpi .v { font-size: 22px; }
     body.print-report .rep-maps { grid-template-columns: 1fr; }
     body.print-report .rep-3d { break-inside: avoid; }
     body.print-report .rep-3d svg { height: 300px; }
@@ -336,6 +351,7 @@
       <div class="sub">Todas las cotizaciones registradas por la sala de ventas. "Ver" la vuelve a cargar para revisarla o reimprimirla.</div>
       <div class="bar">
         <input type="text" id="q-cot" placeholder="Buscar por N°, unidad o cliente" oninput="renderCotizaciones()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; width:260px;">
+        <select id="f-estado" onchange="renderCotizaciones()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px;"><option value="*">Todos los estados</option><option value="">Sin estado</option><option value="bloqueado">Bloqueado</option><option value="reservado">Reservado</option><option value="promesa">Promesa</option></select>
         <a class="btn-primary btn-sm" style="text-decoration:none; display:inline-block;" href="/api/cotizaciones.xlsx">Exportar a Excel</a>
         <span class="hint" id="cot-info" style="margin:0"></span>
       </div>
@@ -400,6 +416,21 @@
   </div>
 </div>
 
+<!-- editor de estado y cliente de una cotización emitida -->
+<div class="modal-bg" id="edit-bg" onclick="if (event.target === this) cerrarEdicion()">
+  <div class="modal">
+    <h3 id="edit-title">Cotización</h3>
+    <div class="sub" id="edit-sub"></div>
+    <div class="row"><label>Estado</label><div class="est-opts" id="edit-estados"></div></div>
+    <div class="row"><label>Cliente guardado</label><select id="edit-cli-sel" onchange="editPickCliente(this.value)"><option value="">— escribir a mano —</option></select></div>
+    <div class="row"><label>Nombre</label><input type="text" id="edit-nombre" placeholder="Nombre del cliente"></div>
+    <div class="row"><label>RUT</label><input type="text" id="edit-rut" placeholder="opcional"></div>
+    <div class="row"><label>Email / fono</label><input type="text" id="edit-contacto" placeholder="opcional"></div>
+    <div class="row"><label></label><label style="width:auto; display:flex; align-items:center; gap:6px; color:#334155;"><input type="checkbox" id="edit-guardar-cli" style="flex:0"> Guardar también en la lista de clientes</label></div>
+    <div class="row"><label>Nota</label><textarea id="edit-nota" rows="2" placeholder="opcional (p. ej. fecha de la reserva, banco, observaciones)"></textarea></div>
+    <div class="foot"><button class="btn-secondary" onclick="cerrarEdicion()">Cancelar</button><button class="btn-primary" onclick="guardarEdicion()">Guardar</button></div>
+  </div>
+</div>
 <div class="chart-tip" id="chart-tip"></div>
 <div class="toast" id="toast"></div>
 
@@ -738,13 +769,61 @@ function usarCliente(id) { document.getElementById('cliente-sel').value = id; pi
 function renderCotizaciones() {
   const t = document.getElementById('tbl-cot');
   const q = (document.getElementById('q-cot').value || '').trim().toLowerCase();
-  const list = [...STATE.cotizaciones].filter(c => !q || `${c.numero} ${c.unidad && c.unidad.label} ${c.cliente && c.cliente.nombre}`.toLowerCase().includes(q)).sort((a, b) => (b.creada || '').localeCompare(a.creada || ''));
+  const fe = document.getElementById('f-estado').value;
+  const list = [...STATE.cotizaciones].filter(c => (fe === '*' || (c.estado || '') === fe) && (!q || `${c.numero} ${c.unidad && c.unidad.label} ${c.cliente && c.cliente.nombre}`.toLowerCase().includes(q))).sort((a, b) => (b.creada || '').localeCompare(a.creada || ''));
   document.getElementById('cot-info').textContent = `${list.length} de ${STATE.cotizaciones.length} cotizaciones`;
-  if (!list.length) { t.innerHTML = '<tr><td class="hint" style="padding:14px;">Aún no hay cotizaciones emitidas.</td></tr>'; return; }
-  t.innerHTML = '<tr><th>N°</th><th>Emitida</th><th>Unidad</th><th>Tipología</th><th>Cliente</th><th class="r">Lista UF</th><th class="r">Desc. UF</th><th class="r">Total UF</th><th class="r">Total $</th><th>Vendedor</th><th></th></tr>' + list.map(c => {
+  if (!list.length) { t.innerHTML = `<tr><td class="hint" style="padding:14px;">${STATE.cotizaciones.length ? 'Ninguna cotización coincide con el filtro.' : 'Aún no hay cotizaciones emitidas.'}</td></tr>`; return; }
+  t.innerHTML = '<tr><th>N°</th><th>Emitida</th><th>Unidad</th><th>Tipología</th><th>Cliente</th><th>Estado</th><th class="r">Lista UF</th><th class="r">Desc. UF</th><th class="r">Total UF</th><th class="r">Total $</th><th>Vendedor</th><th></th></tr>' + list.map(c => {
     const tt = c.totales || {}; const u = c.unidad || {}; const cl = c.cliente || {};
-    return `<tr><td><b>${esc(c.numero)}</b></td><td>${fmtDT(c.creada)}</td><td>${esc(u.label)} · ${u.piso}°</td><td>${esc(u.tipologia)}</td><td>${esc(cl.nombre)}</td><td class="r">${tt.lista != null ? fmt0(tt.lista) : ''}</td><td class="r">${c.aplica ? '− ' + fmt0(tt.descuento || 0) : '<span class="badge no">sin dcto</span>'}</td><td class="r"><b>${tt.total != null ? fmt0(tt.total) : ''}</b></td><td class="r">${c.uf && tt.total != null ? fmtCLP(tt.total * c.uf) : '—'}</td><td>${esc(c.vendedor && c.vendedor.nombre)}</td><td style="white-space:nowrap;"><button class="btn-secondary btn-sm" onclick="verCotizacion('${c.id}')">Ver</button>${isAdmin() ? ` <button class="btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="borrarCotizacion('${c.id}')">Eliminar</button>` : ''}</td></tr>`;
+    return `<tr><td><b>${esc(c.numero)}</b></td><td>${fmtDT(c.creada)}</td><td>${esc(u.label)} · ${u.piso}°</td><td>${esc(u.tipologia)}</td><td>${esc(cl.nombre) || '<span class="hint" style="margin:0">sin cliente</span>'}</td><td>${estadoBadge(c.estado)}${c.nota ? ` <span class="hint" style="margin:0" title="${esc(c.nota)}">✎</span>` : ''}</td><td class="r">${tt.lista != null ? fmt0(tt.lista) : ''}</td><td class="r">${c.aplica ? '− ' + fmt0(tt.descuento || 0) : '<span class="badge no">sin dcto</span>'}</td><td class="r"><b>${tt.total != null ? fmt0(tt.total) : ''}</b></td><td class="r">${c.uf && tt.total != null ? fmtCLP(tt.total * c.uf) : '—'}</td><td>${esc(c.vendedor && c.vendedor.nombre)}</td><td style="white-space:nowrap;"><button class="btn-secondary btn-sm" onclick="verCotizacion('${c.id}')">Ver</button> <button class="btn-secondary btn-sm" onclick="editarCotizacion('${c.id}')">Estado / cliente</button>${isAdmin() ? ` <button class="btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="borrarCotizacion('${c.id}')">Eliminar</button>` : ''}</td></tr>`;
   }).join('');
+}
+// ----- estado comercial y cliente de una cotización emitida -----
+const ESTADOS = [['', 'Sin estado'], ['bloqueado', 'Bloqueado'], ['reservado', 'Reservado'], ['promesa', 'Promesa']];
+const estadoLabel = e => (ESTADOS.find(x => x[0] === (e || '')) || ESTADOS[0])[1];
+const estadoBadge = e => `<span class="badge ${e ? 'e-' + e : 'e-none'}">${estadoLabel(e)}</span>`;
+let editId = null, editEstado = '';
+function editarCotizacion(id) {
+  const c = STATE.cotizaciones.find(x => x.id === id); if (!c) return;
+  editId = id; editEstado = c.estado || '';
+  const cl = c.cliente || {};
+  document.getElementById('edit-title').textContent = `Cotización ${c.numero}`;
+  document.getElementById('edit-sub').textContent = `${(c.unidad && c.unidad.label) || ''} · piso ${(c.unidad && c.unidad.piso) || ''}° · emitida el ${fmtDT(c.creada)}${c.estadoFecha ? ` · estado actualizado el ${fmtDT(c.estadoFecha)} por ${c.estadoPor || ''}` : ''}`;
+  renderEditEstados();
+  const sel = document.getElementById('edit-cli-sel');
+  sel.innerHTML = '<option value="">— escribir a mano —</option>' + [...STATE.clientes].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(x => `<option value="${x.id}">${esc(x.nombre)}${x.rut ? ' · ' + esc(x.rut) : ''}</option>`).join('');
+  const guardado = cl.id ? STATE.clientes.find(x => x.id === cl.id) : null;
+  sel.value = guardado ? cl.id : '';
+  document.getElementById('edit-nombre').value = cl.nombre || (guardado && guardado.nombre) || ''; document.getElementById('edit-rut').value = cl.rut || (guardado && guardado.rut) || ''; document.getElementById('edit-contacto').value = cl.contacto || (guardado && guardado.contacto) || '';
+  document.getElementById('edit-guardar-cli').checked = false;
+  document.getElementById('edit-nota').value = c.nota || '';
+  document.getElementById('edit-bg').classList.add('open');
+  document.getElementById('edit-nombre').focus();
+}
+function renderEditEstados() {
+  document.getElementById('edit-estados').innerHTML = ESTADOS.map(([v, l]) => `<button class="${v === editEstado ? 'active' : ''}" onclick="editEstado='${v}'; renderEditEstados()">${l}</button>`).join('');
+}
+function editPickCliente(id) {
+  const x = STATE.clientes.find(c => c.id === id); if (!x) return;
+  document.getElementById('edit-nombre').value = x.nombre; document.getElementById('edit-rut').value = x.rut || ''; document.getElementById('edit-contacto').value = x.contacto || '';
+}
+function cerrarEdicion() { document.getElementById('edit-bg').classList.remove('open'); editId = null; }
+async function guardarEdicion() {
+  const c = STATE.cotizaciones.find(x => x.id === editId); if (!c) return;
+  const nombre = document.getElementById('edit-nombre').value.trim(), rut = document.getElementById('edit-rut').value.trim(), contacto = document.getElementById('edit-contacto').value.trim();
+  let clId = document.getElementById('edit-cli-sel').value || null;
+  const selCli = clId && STATE.clientes.find(x => x.id === clId);
+  if (selCli && selCli.nombre !== nombre) clId = null;      // se cambió el nombre a mano: ya no es el cliente guardado
+  try {
+    if (!clId && nombre && document.getElementById('edit-guardar-cli').checked) {
+      const nuevo = await api('POST', '/api/clientes', { nombre, rut, contacto });
+      clId = nuevo.id;
+    }
+    await api('PATCH', '/api/cotizaciones/' + editId, { estado: editEstado, cliente: { id: clId, nombre, rut, contacto }, nota: document.getElementById('edit-nota').value });
+    cerrarEdicion();
+    toast(`Cotización ${c.numero} actualizada`);
+    await loadState();
+  } catch (e) { if (e.message !== 'PIN' && e.message !== 'login') toast('No se pudo guardar: ' + e.message, true); }
 }
 async function borrarCotizacion(id) {
   const c = STATE.cotizaciones.find(x => x.id === id); if (!c || !isAdmin()) return;
@@ -768,7 +847,7 @@ async function verCotizacion(id) {
     const v = c.vendedor || {}; document.getElementById('v-nombre').value = v.nombre || ''; document.getElementById('v-fono').value = v.fono || ''; document.getElementById('v-email').value = v.email || '';
     viewingId = c.id; docNumberStr = c.numero;
     const vb = document.getElementById('viewing'); vb.style.display = 'block';
-    vb.innerHTML = `Revisando la cotización <b>${esc(c.numero)}</b> emitida el ${fmtDT(c.creada)}. <button class="btn-primary btn-sm" onclick="window.print()">Reimprimir PDF</button> <button class="btn-secondary btn-sm" onclick="limpiar()">Cerrar</button><div class="hint" style="margin:4px 0 0 0">Si cambias algo y pulsas "Emitir PDF" se creará una cotización nueva con otro número.</div>`;
+    vb.innerHTML = `Revisando la cotización <b>${esc(c.numero)}</b> ${estadoBadge(c.estado)} emitida el ${fmtDT(c.creada)}. <button class="btn-primary btn-sm" onclick="window.print()">Reimprimir PDF</button> <button class="btn-secondary btn-sm" onclick="limpiar()">Cerrar</button><div class="hint" style="margin:4px 0 0 0">Si cambias algo y pulsas "Emitir PDF" se creará una cotización nueva con otro número.</div>`;
     showView('cotizar'); render3D(); render();
   } catch (e) { toast('No se pudo cargar: ' + e.message, true); }
 }
@@ -1265,6 +1344,20 @@ function hStackChart(rows, opt) {
   s += `<div class="legend"><span><i style="background:${o.colorA}"></i>${esc(o.nameA)}</span><span><i style="background:${o.colorB}"></i>${esc(o.nameB)}</span><span class="hint" style="margin:0">(vendidos / total)</span></div>`;
   return s;
 }
+// Barras horizontales simples (una serie, color por fila).
+function hBarChart(rows, opt) {
+  const o = Object.assign({ w: 560, rowH: 28, padL: 86, padR: 40, padT: 6 }, opt || {});
+  const max = Math.max(1, ...rows.map(r => r.v));
+  const pw = o.w - o.padL - o.padR, h = o.padT + rows.length * o.rowH + 4;
+  let s = `<svg class="chart" viewBox="0 0 ${o.w} ${h}" role="img" aria-label="${esc(o.aria || '')}">`;
+  rows.forEach((r, i) => {
+    const y = o.padT + i * o.rowH + 5, bh = o.rowH - 10, w = r.v / max * pw;
+    s += `<text class="lbl" x="${o.padL - 8}" y="${(y + bh / 2 + 4).toFixed(1)}" text-anchor="end">${esc(r.label)}</text>`;
+    s += `<rect class="bar" x="${o.padL}" y="${y}" width="${Math.max(2, w).toFixed(1)}" height="${bh}" rx="3" fill="${r.color}" ${r.stroke ? 'stroke="#94a3b8" stroke-width="0.5"' : ''} onmousemove="chartTip(event,'${esc(r.label)}: ${r.v}${r.sub ? ' · ' + esc(r.sub) : ''}')" onmouseleave="chartTip()"><title>${r.v}</title></rect>`;
+    s += `<text class="val" x="${(o.padL + w + 6).toFixed(1)}" y="${(y + bh / 2 + 4).toFixed(1)}">${r.v}</text>`;
+  });
+  return s + '</svg>';
+}
 // Anillo de avance de ventas.
 function donut(a, b, labelA, labelB) {
   const tot = Math.max(1, a + b), r = 46, c = 2 * Math.PI * r, fa = a / tot;
@@ -1308,6 +1401,14 @@ function renderInforme() {
   const nuevos = STATE.clientes.filter(c => c.creado && new Date(c.creado).getTime() >= desde).sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
   const MAX_NUEVOS = 60;
   const nCotCli = {}; STATE.cotizaciones.forEach(c => { const k = c.cliente && c.cliente.id; if (k) nCotCli[k] = (nCotCli[k] || 0) + 1; });
+  // cotizaciones por estado comercial
+  const EST_COLOR = { promesa: REP.navy, reservado: REP.gold, bloqueado: '#93c5fd', '': REP.free };
+  const porEstado = ESTADOS.map(([v, l]) => {
+    const cs = STATE.cotizaciones.filter(c => (c.estado || '') === v);
+    return { v, label: l, n: cs.length, uf: cs.reduce((s, c) => s + ((c.totales && c.totales.total) || 0), 0), semana: cs.filter(c => c.estadoFecha && new Date(c.estadoFecha).getTime() >= weeks[thisW].getTime()).length };
+  });
+  const conEstado = STATE.cotizaciones.filter(c => c.estado).sort((a, b) => ESTADOS.findIndex(e => e[0] === b.estado) - ESTADOS.findIndex(e => e[0] === a.estado) || (b.estadoFecha || '').localeCompare(a.estadoFecha || ''));
+  const MAX_EST = 80;
   const semana = `${ddmm(weeks[thisW])} al ${ddmm(new Date(weeks[thisW].getTime() + 6 * 864e5))}`;
   const delta = (a, b) => b === undefined ? '' : a === b ? 'igual que la semana anterior' : a > b ? `+${a - b} vs. semana anterior` : `${a - b} vs. semana anterior`;
   const now = new Date();
@@ -1319,6 +1420,7 @@ function renderInforme() {
     <div class="kpis">
       <div class="kpi"><div class="k">Cotizaciones esta semana</div><div class="v">${cotW[thisW]}</div><div class="s">${delta(cotW[thisW], cotW[prevW])} · ${STATE.cotizaciones.length} en total</div></div>
       <div class="kpi"><div class="k">Clientes nuevos esta semana</div><div class="v">${cliW[thisW]}</div><div class="s">${delta(cliW[thisW], cliW[prevW])} · ${STATE.clientes.length} registrados</div></div>
+      <div class="kpi"><div class="k">Promesas</div><div class="v">${porEstado[3].n}</div><div class="s">${porEstado[2].n} reservadas · ${porEstado[1].n} bloqueadas</div></div>
       <div class="kpi"><div class="k">Departamentos disponibles</div><div class="v">${nFree}</div><div class="s">de ${UNITS.length} unidades</div></div>
       <div class="kpi"><div class="k">Vendidos (bloqueados)</div><div class="v">${nSold}</div><div class="s">${Math.round(nSold / UNITS.length * 100)}% del edificio</div></div>
     </div>
@@ -1336,6 +1438,15 @@ function renderInforme() {
         <div><div class="map-title">Por detrás · fachada norte (vista Manquehue)</div><div class="rep-3d"><svg id="rep-3d-svg-back" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg></div></div>
       </div>
       <div class="legend"><span><i style="background:#ffffff"></i>Disponible</span><span><i style="background:#111827"></i>Vendido</span><span><i style="background:#475569"></i>Core / escaleras</span><span><i style="background:#b6c2d1"></i>Circulación</span></div></div>
+    <div class="rep-grid">
+      <div class="fig"><h4>Cotizaciones por estado</h4><div class="sub">Estado comercial de todas las cotizaciones emitidas (${STATE.cotizaciones.length} en total).</div>
+        ${hBarChart([...porEstado].reverse().map(r => ({ label: r.label, v: r.n, color: EST_COLOR[r.v], stroke: !r.v, sub: 'UF ' + fmt0(r.uf) })), { aria: 'Cotizaciones por estado' })}
+        <table class="tbl" style="margin-top:8px;"><tr><th>Estado</th><th class="r">Cotizaciones</th><th class="r">Nuevas esta semana</th><th class="r">UF total</th></tr>
+        ${[...porEstado].reverse().map(r => `<tr><td>${estadoBadge(r.v)}</td><td class="r">${r.n}</td><td class="r">${r.v ? r.semana : '—'}</td><td class="r">${fmt0(r.uf)}</td></tr>`).join('')}</table></div>
+      <div class="fig"><h4>Detalle por estado</h4><div class="sub">Cotizaciones con estado Promesa, Reservado o Bloqueado${conEstado.length > MAX_EST ? ` (se muestran ${MAX_EST} de ${conEstado.length})` : ''}.</div>
+        <table class="tbl"><tr><th>Estado</th><th>N°</th><th>Unidad</th><th>Cliente</th><th class="r">Total UF</th><th>Desde</th></tr>
+        ${conEstado.length ? conEstado.slice(0, MAX_EST).map(c => `<tr><td>${estadoBadge(c.estado)}</td><td><b>${esc(c.numero)}</b></td><td>${esc(c.unidad && c.unidad.label)} · ${(c.unidad && c.unidad.piso) || ''}°</td><td>${esc(c.cliente && c.cliente.nombre) || '—'}</td><td class="r">${c.totales ? fmt0(c.totales.total) : ''}</td><td>${fmtDT(c.estadoFecha).slice(0, 10)}</td></tr>`).join('') : '<tr><td colspan="6" class="hint">Ninguna cotización tiene estado asignado todavía.</td></tr>'}</table></div>
+    </div>
     <div class="fig" style="margin-bottom:16px;"><h4>Nuevos clientes</h4><div class="sub">Clientes registrados en las últimas ${nW} semanas, del más reciente al más antiguo${nuevos.length > MAX_NUEVOS ? ` (se muestran ${MAX_NUEVOS} de ${nuevos.length})` : ''}.</div>
       <table class="tbl"><tr><th>Fecha</th><th>Cliente</th><th>RUT</th><th>Contacto</th><th class="r">Cotizaciones</th><th>Registrado por</th></tr>
       ${nuevos.length ? nuevos.slice(0, MAX_NUEVOS).map(c => `<tr><td>${fmtDT(c.creado).slice(0, 10)}</td><td><b>${esc(c.nombre)}</b></td><td>${esc(c.rut) || '—'}</td><td>${esc(c.contacto) || '—'}</td><td class="r">${nCotCli[c.id] || 0}</td><td>${esc(c.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="6" class="hint">No hay clientes nuevos en el período.</td></tr>'}</table></div>

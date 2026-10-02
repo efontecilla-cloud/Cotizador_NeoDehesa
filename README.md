@@ -12,6 +12,7 @@ Cotizador online para la sala de ventas del proyecto Vía Trapenses (Vitalia Inm
 - Departamentos vendidos: se marcan en negro y no admiten nuevas cotizaciones.
 - Clientes guardados y exportables a Excel.
 - Registro de todas las cotizaciones emitidas, con exportación a Excel y reimpresión.
+- Estado comercial por cotización (**Bloqueado**, **Reservado**, **Promesa**), editable, con filtro por estado; a una cotización emitida se le puede asignar o cambiar el cliente.
 - **Administración** (solo admin): usuarios y su actividad (en línea / última actividad / últimos ingresos), e **informe de ventas** con cotizaciones y clientes nuevos por semana (lunes a domingo), avance de ventas, vendidos por tipología, mapa 3D de disponibilidad (blanco = disponible, negro = vendido), tablas de resumen y exportación a PDF.
 
 ## Usuarios
@@ -81,6 +82,7 @@ Todas las rutas (salvo login, `/api/me` y `/healthz`) exigen sesión; sin ella r
 | GET / POST / DELETE | `/api/clientes`, `/api/clientes/:id` | Clientes guardados. |
 | GET | `/api/clientes.xlsx` | Exporta clientes a Excel. |
 | GET / POST | `/api/cotizaciones`, `/api/cotizaciones/:id` | Cotizaciones emitidas (el servidor asigna el número). |
+| PATCH | `/api/cotizaciones/:id` | Cambia estado (`bloqueado`, `reservado`, `promesa` o vacío), cliente o nota de una cotización. |
 | DELETE | `/api/cotizaciones/:id` | (admin) Elimina una cotización. |
 | GET | `/api/cotizaciones.xlsx` | Exporta cotizaciones a Excel. |
 | GET | `/api/uf` | Valor UF del día (caché de 6 horas). |
