@@ -88,6 +88,10 @@ Todas las rutas (salvo login, `/api/me` y `/healthz`) exigen sesión; sin ella r
 | GET | `/api/uf` | Valor UF del día (caché de 6 horas). |
 | GET / POST | `/api/backup`, `/api/restore` | (admin) Respaldo y restauración de la base de datos. |
 
+## Fichas por piso
+
+Además de las fichas base (tipos A a I), `public/index.html` incluye fichas propias para el **1° piso con jardín** (claves `A1`, `C1`, `D1`, `E1`, `F1`) y el **6° piso con azotea** (`A6`, `B6`, `C6`, `D6`, `E6`, `F6`, `G6`, `I6`). La función `fichaFor(u)` elige la variante según piso, patio y azotea; el 10-O del 6° piso (tipo H en la lista de precios) usa la ficha `I6`, que es la única con azotea para esa unidad. La cotización y la ficha muestran además la superficie de jardín o azotea y el total con ella.
+
 ## Actualizar precios o fichas
 
 `public/index.html` se genera con el script `build_cotizador.ps1` (fuera del repositorio) a partir del Excel de pricing, el logo y las imágenes de las fichas. Para cambiar la lista de precios se vuelve a generar el archivo y se hace commit. **Atención:** la lógica de la aplicación (login, administración, informe) vive en el mismo archivo; si se regenera con el script hay que conservar esos cambios.
