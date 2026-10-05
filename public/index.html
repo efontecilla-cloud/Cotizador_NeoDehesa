@@ -1316,10 +1316,14 @@ const ymdLocal = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.get
 const ddmm = d => `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}`;
 function weekStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }   // lunes de esa semana
 function lastWeeks(n) { const out = []; let s = weekStart(new Date()); for (let i = 0; i < n; i++) { out.unshift(s); s = new Date(s); s.setDate(s.getDate() - 7); } return out; }
+// Fecha de un registro: acepta "AAAA-MM-DD" (se interpreta como fecha local, no UTC) o un ISO con hora.
+function parseFecha(v) { if (!v) return null; const s = String(v); const d = /^\d{4}-\d{2}-\d{2}$/.test(s) ? new Date(s + 'T12:00:00') : new Date(s); return isNaN(d) ? null : d; }
+// Fecha de emisión de una cotización (la elegida en el formulario); si falta, la de registro.
+const fechaEmision = c => parseFecha(c.fecha) || parseFecha(c.creada);
 function countByWeek(items, field, weeks) {
   const idx = {}; weeks.forEach((w, i) => idx[ymdLocal(w)] = i);
   const counts = weeks.map(() => 0);
-  items.forEach(it => { if (!it[field]) return; const d = new Date(it[field]); if (isNaN(d)) return; const i = idx[ymdLocal(weekStart(d))]; if (i !== undefined) counts[i] += 1; });
+  items.forEach(it => { const d = typeof field === 'function' ? field(it) : parseFecha(it[field]); if (!d) return; const i = idx[ymdLocal(weekStart(d))]; if (i !== undefined) counts[i] += 1; });
   return counts;
 }
 function relTime(iso) {
@@ -1430,7 +1434,7 @@ function renderInforme() {
   const nW = parseInt(document.getElementById('rep-weeks').value, 10) || 12;
   const weeks = lastWeeks(nW);
   const labels = weeks.map(w => ddmm(w));
-  const cotW = countByWeek(STATE.cotizaciones, 'creada', weeks);
+  const cotW = countByWeek(STATE.cotizaciones, fechaEmision, weeks);   // por fecha de emisión de la cotización
   const cliW = countByWeek(STATE.clientes, 'creado', weeks);
   const thisW = weeks.length - 1, prevW = weeks.length - 2;
   const soldKeys = Object.keys(STATE.blocked);
@@ -1468,7 +1472,7 @@ function renderInforme() {
       <div class="kpi"><div class="k">Vendidos (bloqueados)</div><div class="v">${nSold}</div><div class="s">${Math.round(nSold / UNITS.length * 100)}% del edificio</div></div>
     </div>
     <div class="rep-grid">
-      <div class="fig"><h4>Cotizaciones y clientes nuevos por semana</h4><div class="sub">Últimas ${nW} semanas, de lunes a domingo. La semana en curso es la última barra.</div>
+      <div class="fig"><h4>Cotizaciones y clientes nuevos por semana</h4><div class="sub">Últimas ${nW} semanas, de lunes a domingo, según la fecha de emisión de la cotización y la fecha de registro del cliente. La semana en curso es la última barra.</div>
         ${barChart(labels, [{ name: 'Cotizaciones', color: REP.navy, values: cotW }, { name: 'Clientes nuevos', color: REP.gold, values: cliW }], { aria: 'Cotizaciones y clientes nuevos por semana' })}</div>
       <div class="fig"><h4>Avance de ventas</h4><div class="sub">Unidades vendidas (bloqueadas por la sala de ventas) sobre el total del edificio.</div>
         ${donut(nSold, nFree, 'Vendidos', 'Disponibles')}
