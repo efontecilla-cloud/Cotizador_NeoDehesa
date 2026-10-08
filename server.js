@@ -37,7 +37,7 @@ const publicUser = u => u ? { usuario: u.usuario, rol: u.rol, nombre: u.nombre |
 const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(String(b)); return x.length === y.length && crypto.timingSafeEqual(x, y); };
 
 // ---------- base de datos (archivo JSON) ----------
-function emptyDb() { return { seq: 0, blocked: {}, clientes: [], cotizaciones: [], sesiones: {}, accesos: [] }; }
+function emptyDb() { return { seq: 0, blocked: {}, clientes: [], cotizaciones: [], sesiones: {}, accesos: [], precios: {}, preciosInfo: null }; }
 function loadDb() {
   try { return Object.assign(emptyDb(), JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))); }
   catch (e) { return emptyDb(); }
@@ -55,7 +55,7 @@ const nowIso = () => new Date().toISOString();
 const app = express();
 app.disable('x-powered-by');
 app.set('trust proxy', 1);                              // Render está detrás de un proxy https
-app.use(express.json({ limit: '2mb' }));
+app.use(express.json({ limit: '6mb' }));              // la carga de un Excel de precios viaja en base64
 
 // ---------- sesiones (cookie) ----------
 function getCookie(req, name) {
@@ -142,6 +142,8 @@ app.get('/api/state', (req, res) => {
   res.json({
     user: publicUser(req.user),
     pinRequired: !!ADMIN_PIN,
+    precios: db.precios || {},            // precios cargados por el administrador (clave de unidad → { lista, desc })
+    preciosInfo: db.preciosInfo || null,
     blocked: db.blocked,
     clientes: db.clientes,
     cotizaciones: db.cotizaciones.map(c => ({
@@ -169,6 +171,47 @@ app.get('/api/admin/usuarios', requireAdmin, (req, res) => {
     });
   });
   res.json({ usuarios, accesos: db.accesos.slice(0, 30) });
+});
+
+// ---------- lista de precios (solo admin) ----------
+// La lista base viene en public/index.html. El administrador puede cargar un Excel con nuevos precios (lista y
+// descuento) que se guardan en db.precios y se aplican al cotizar. Las ventas y las cotizaciones emitidas no cambian.
+app.post('/api/precios/xlsx', requireAdmin, (req, res) => {
+  const rows = (req.body && req.body.rows) || [];
+  if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'sin filas' });
+  sendXlsx(res, rows, 'Precios', 'Lista de precios Via Trapenses');
+});
+app.post('/api/precios/parse', requireAdmin, (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!b.base64) return res.status(400).json({ error: 'archivo requerido' });
+    const wb = XLSX.read(Buffer.from(String(b.base64), 'base64'), { type: 'buffer' });
+    const name = wb.SheetNames[0];
+    const filas = XLSX.utils.sheet_to_json(wb.Sheets[name], { defval: '' });
+    res.json({ hoja: name, filas });
+  } catch (e) { res.status(400).json({ error: 'No se pudo leer el archivo: ' + e.message }); }
+});
+app.post('/api/precios', requireAdmin, requirePin, (req, res) => {
+  const b = req.body || {};
+  const src = b.precios || {};
+  const precios = {};
+  for (const [k, v] of Object.entries(src)) {
+    const lista = Number(v && v.lista), desc = Number(v && v.desc);
+    if (!/^\d-\d{2}-[OP]$/.test(k) || !(lista > 0) || !(desc > 0) || desc > lista) return res.status(400).json({ error: `precio inválido en ${k}` });
+    precios[k] = { lista: Math.round(lista), desc: Math.round(desc) };
+  }
+  if (!Object.keys(precios).length) return res.status(400).json({ error: 'sin precios' });
+  const db = loadDb();
+  db.precios = precios;
+  db.preciosInfo = { fecha: nowIso(), usuario: req.user.usuario, archivo: String(b.archivo || '').slice(0, 120), n: Object.keys(precios).length };
+  saveDb(db);
+  res.json({ ok: true, preciosInfo: db.preciosInfo });
+});
+app.delete('/api/precios', requireAdmin, requirePin, (req, res) => {
+  const db = loadDb();
+  db.precios = {}; db.preciosInfo = null;
+  saveDb(db);
+  res.json({ ok: true });
 });
 
 // ---------- ventas (departamentos bloqueados) ----------

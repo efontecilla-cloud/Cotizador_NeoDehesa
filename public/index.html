@@ -411,6 +411,18 @@
       </div>
     </div>
 
+    <div class="card no-print-report">
+      <h2>Lista de precios</h2>
+      <div class="sub">Descarga el Excel con todas las unidades (precio de lista, precio con descuento, estado de venta y comprador). Para cambiar precios o descuentos, edita las columnas <b>Precio lista UF</b> y <b>Precio descuento UF</b> de ese mismo archivo y vuelve a cargarlo: verás una vista previa antes de aplicar. Las ventas registradas y las cotizaciones ya emitidas no se modifican.</div>
+      <div class="bar">
+        <button class="btn-primary btn-sm" onclick="descargarPrecios()">Descargar Excel de precios</button>
+        <label class="btn-secondary btn-sm" style="cursor:pointer;">Cargar Excel de precios <input type="file" id="precios-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="cargarPrecios(this)"></label>
+        <button class="btn-secondary btn-sm" id="btn-precios-restaurar" onclick="restaurarPrecios()" style="display:none;">Volver a la lista original</button>
+        <span class="hint" id="precios-info" style="margin:0"></span>
+      </div>
+      <div id="precios-preview"></div>
+    </div>
+
     <div class="card" id="rep-card">
       <div class="bar no-print-report">
         <h2 style="margin:0; flex:1;">Informe de ventas</h2>
@@ -622,7 +634,13 @@ const uKey = u => `${u.piso}-${u.unidad}-${u.lado}`;
 const uLabel = u => `${u.unidad}-${u.lado}`;
 const uCode = u => `${u.piso}${u.unidad}${u.lado}`;
 const supTotal = u => u.interior + u.terraza;
-const unitByKey = {}; UNITS.forEach(u => unitByKey[uKey(u)] = u);
+const unitByKey = {}; UNITS.forEach(u => { unitByKey[uKey(u)] = u; u.lista0 = u.lista; u.desc0 = u.desc; });   // lista0/desc0: precios originales del archivo
+// Aplica los precios cargados por el administrador (STATE.precios) sobre la lista base; sin carga, vuelve a los originales.
+function applyPrecios() {
+  const p = (STATE && STATE.precios) || {};
+  UNITS.forEach(u => { const o = p[uKey(u)]; u.lista = o && o.lista > 0 ? o.lista : u.lista0; u.desc = o && o.desc > 0 ? o.desc : u.desc0; });
+}
+const priceDateLabel = () => STATE.preciosInfo && STATE.preciosInfo.fecha ? fmtDT(STATE.preciosInfo.fecha).slice(0, 10).split('-').reverse().join('.') : PRICE_DATE;
 const isSold = u => !!(STATE.blocked && STATE.blocked[uKey(u)]);
 
 let selected = null;
@@ -654,6 +672,7 @@ async function loadState() {
   try {
     const s = await api('GET', '/api/state');
     STATE = Object.assign({}, s, { online: true });
+    applyPrecios();
     setConn(true);
     applyUser();
   } catch (e) { if (e.message === 'login') return; STATE.online = false; setConn(false); }
@@ -682,8 +701,9 @@ function refreshAll() {
   document.getElementById('cnt-cot').textContent = STATE.cotizaciones.length;
   document.getElementById('cnt-cli').textContent = STATE.clientes.length;
   document.getElementById('cnt-sold').textContent = Object.keys(STATE.blocked).length;
-  fillSelect(); fillClienteSel(); renderCotizaciones(); renderClientes(); renderVendidos(); render3D(); updateSelbox();
-  if (isAdmin() && document.getElementById('view-admin').classList.contains('active')) renderInforme();
+  document.getElementById('price-date').textContent = priceDateLabel() + (STATE.preciosInfo ? ' (cargada)' : '');
+  fillSelect(); fillClienteSel(); renderCotizaciones(); renderClientes(); renderVendidos(); render3D(); updateSelbox(); render();
+  if (isAdmin() && document.getElementById('view-admin').classList.contains('active')) { renderInforme(); renderPreciosInfo(); }
 }
 function showView(name) {
   if (name === 'admin' && !isAdmin()) { toast('Solo el administrador puede ver esta sección', true); return; }
@@ -1162,7 +1182,7 @@ function render() {
   const clp = v => c.ufv ? fmtCLP(v * c.ufv) : '—';
   const sup = v => (v === null || v === undefined || isNaN(v)) ? '—' : fmt2(v) + ' m²';
   const meta = `N° <b>${docNumberLabel()}</b><br>Fecha: <b>${fecha}</b><br>Validez: <b>${validez} días</b>`;
-  const foot = `<div class="doc-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Cotización ${docNumberLabel()} · lista de precios ${PRICE_DATE}</span></div>`;
+  const foot = `<div class="doc-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Cotización ${docNumberLabel()} · lista de precios ${priceDateLabel()}</span></div>`;
 
   let items = '';
   c.items.forEach(i => {
@@ -1344,6 +1364,104 @@ async function loadAdmin() {
     document.getElementById('adm-info').textContent = `${r.usuarios.filter(u => u.enLinea).length} en línea de ${r.usuarios.length} usuarios`;
   } catch (e) { if (e.message !== 'login') toast('No se pudo cargar usuarios: ' + e.message, true); }
   renderInforme();
+  renderPreciosInfo();
+}
+
+// --- lista de precios: descarga a Excel, carga con vista previa y restauración ---
+const ESTADO_VENTA_LABEL = { bloqueado: 'Bloqueado', reservado: 'Reservado', promesa: 'Promesa' };
+function filasPrecios() {
+  return [...UNITS].sort((a, b) => b.piso - a.piso || a.unidad.localeCompare(b.unidad) || a.lado.localeCompare(b.lado)).map(u => {
+    const v = STATE.blocked[uKey(u)], cl = (v && v.cliente) || {};
+    return {
+      'Piso': u.piso, 'Unidad': u.unidad, 'Lado': u.lado, 'Código': uCode(u), 'Tipología': u.tipologia, 'Orientación': u.orientacion, 'Categoría': u.categoria, 'Ficha': u.ficha,
+      'Sup. interior m2': u.interior, 'Sup. terraza m2': u.terraza, 'Azotea m2': u.azotea || 0, 'Patio m2': u.patio || 0,
+      'Precio lista UF': u.lista, 'Precio descuento UF': u.desc, 'Dcto %': Math.round((1 - u.desc / u.lista) * 1000) / 10,
+      'Precio lista original UF': u.lista0, 'Precio descuento original UF': u.desc0,
+      'Vendido': v ? 'Sí' : 'No', 'Estado': v ? (ESTADO_VENTA_LABEL[ventaEstado(v)] || 'Bloqueado') : 'Disponible',
+      'Comprador': cl.nombre || '', 'RUT': cl.rut || '', 'Contacto': cl.contacto || '',
+      'Fecha venta': v ? fmtDT(v.fecha).slice(0, 10) : '', 'Fecha estado': v ? fmtDT(v.estadoFecha || v.fecha).slice(0, 10) : '', 'Nota': v ? ventaNota(v) : '', 'Registrada por': v ? (v.usuario || '') : ''
+    };
+  });
+}
+async function descargarPrecios() {
+  try {
+    const r = await fetch('/api/precios/xlsx', { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-pin': getPin() }, body: JSON.stringify({ rows: filasPrecios() }) });
+    if (!r.ok) { let m = 'Error ' + r.status; try { m = (await r.json()).error || m; } catch (e) {} throw new Error(m); }
+    const blob = await r.blob();
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `Lista de precios Via Trapenses ${todayIso()}.xlsx`; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) { toast('No se pudo descargar: ' + e.message, true); }
+}
+function renderPreciosInfo() {
+  const el = document.getElementById('precios-info'); if (!el) return;
+  const info = STATE.preciosInfo;
+  el.textContent = info ? `Lista cargada el ${fmtDT(info.fecha)} por ${info.usuario}${info.archivo ? ' (' + info.archivo + ')' : ''} · ${info.n} unidades · lista original del ${PRICE_DATE}` : `Lista de precios original del ${PRICE_DATE} (sin cambios cargados)`;
+  document.getElementById('btn-precios-restaurar').style.display = info ? '' : 'none';
+}
+const normHeader = s => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9%]/g, ' ').replace(/\s+/g, ' ').trim();
+// Número desde una celda: acepta 6410, "6410", "6.410" (punto de miles), "6.410,5" o "6410,5" (coma decimal) y "6410.5".
+const numCell = v => {
+  if (typeof v === 'number') return v;
+  const s = String(v || '').trim().replace(/\s|uf|\$/gi, ''); if (!s) return NaN;
+  if (s.includes(',')) return Number(s.replace(/\./g, '').replace(',', '.'));          // formato chileno: 6.410,50
+  if (/^\d{1,3}(\.\d{3})+$/.test(s)) return Number(s.replace(/\./g, ''));              // solo puntos de miles: 6.410
+  return Number(s);                                                                    // 6410 o 6410.5
+};
+let preciosPendientes = null;
+async function cargarPrecios(input) {
+  const file = input.files && input.files[0]; if (!file) return;
+  const prev = document.getElementById('precios-preview');
+  prev.innerHTML = '<div class="hint">Leyendo archivo…</div>';
+  try {
+    const base64 = await new Promise((ok, ko) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(',')[1]); fr.onerror = () => ko(new Error('no se pudo leer el archivo')); fr.readAsDataURL(file); });
+    const r = await api('POST', '/api/precios/parse', { base64, nombre: file.name });
+    const filas = r.filas || [];
+    if (!filas.length) throw new Error('el archivo no tiene filas');
+    const headers = Object.keys(filas[0]); const h = {}; headers.forEach(k => h[normHeader(k)] = k);
+    const find = (...cands) => { for (const c of cands) { const k = Object.keys(h).find(x => x === c || x.startsWith(c)); if (k) return h[k]; } return null; };
+    const cPiso = find('piso'), cUnidad = find('unidad'), cLado = find('lado'), cCodigo = find('codigo'), cLista = find('precio lista uf', 'precio lista', 'lista uf', 'lista'), cDesc = find('precio descuento uf', 'precio descuento', 'precio con descuento', 'descuento uf', 'desc');
+    if (!cLista || !cDesc || !((cPiso && cUnidad && cLado) || cCodigo)) throw new Error('faltan columnas: se necesitan Piso, Unidad y Lado (o Código) y Precio lista UF, Precio descuento UF. Columnas encontradas: ' + headers.join(', '));
+    const cambios = [], errores = [], iguales = []; const vistos = {}; const precios = {};
+    filas.forEach((f, i) => {
+      let key;
+      if (cPiso && cUnidad && cLado && String(f[cPiso]).trim() !== '') key = `${String(f[cPiso]).trim()}-${String(f[cUnidad]).trim().padStart(2, '0')}-${String(f[cLado]).trim().toUpperCase()}`;
+      else if (cCodigo && String(f[cCodigo]).trim() !== '') { const m = String(f[cCodigo]).trim().toUpperCase().match(/^(\d)(\d{2})([OP])$/); if (m) key = `${m[1]}-${m[2]}-${m[3]}`; }
+      if (!key) { if (Object.values(f).some(v => String(v).trim() !== '')) errores.push(`fila ${i + 2}: no se reconoce la unidad`); return; }
+      const u = unitByKey[key]; if (!u) { errores.push(`fila ${i + 2}: la unidad ${key} no existe en el cotizador`); return; }
+      if (vistos[key]) { errores.push(`fila ${i + 2}: la unidad ${uLabel(u)} piso ${u.piso}° está repetida`); return; } vistos[key] = true;
+      const lista = numCell(f[cLista]), desc = numCell(f[cDesc]);
+      if (!(lista > 0) || !(desc > 0)) { errores.push(`fila ${i + 2} (${uLabel(u)} piso ${u.piso}°): precio vacío o no numérico`); return; }
+      if (desc > lista) { errores.push(`fila ${i + 2} (${uLabel(u)} piso ${u.piso}°): el precio con descuento (${fmt0(desc)}) es mayor que el de lista (${fmt0(lista)})`); return; }
+      precios[key] = { lista: Math.round(lista), desc: Math.round(desc) };
+      if (Math.round(lista) !== u.lista || Math.round(desc) !== u.desc) cambios.push({ u, lista: Math.round(lista), desc: Math.round(desc) }); else iguales.push(key);
+    });
+    const faltan = UNITS.filter(u => !precios[uKey(u)]);
+    preciosPendientes = errores.length ? null : { precios, archivo: file.name, n: Object.keys(precios).length };
+    prev.innerHTML = `<div class="hint" style="margin:8px 0 6px 0;"><b>${esc(file.name)}</b> · hoja "${esc(r.hoja)}" · ${filas.length} filas leídas · <b>${cambios.length} unidades cambian</b> · ${iguales.length} sin cambios${faltan.length ? ` · <span style="color:#b45309">${faltan.length} unidades no vienen en el archivo (conservan su precio actual)</span>` : ''}</div>`
+      + (errores.length ? `<div class="warn" style="display:block; margin-bottom:8px;"><b>No se puede aplicar.</b> Corrige el archivo y vuelve a cargarlo:<br>${errores.slice(0, 15).map(esc).join('<br>')}${errores.length > 15 ? '<br>… y ' + (errores.length - 15) + ' más' : ''}</div>` : '')
+      + (cambios.length ? `<div style="overflow-x:auto; max-height:360px; overflow-y:auto;"><table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th class="r">Lista actual</th><th class="r">Lista nueva</th><th class="r">Dcto actual</th><th class="r">Dcto nuevo</th><th class="r">% dcto nuevo</th><th>Venta</th></tr>`
+        + cambios.map(c => { const v = STATE.blocked[uKey(c.u)]; const dl = c.lista !== c.u.lista, dd = c.desc !== c.u.desc; return `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${esc(c.u.tipologia)}</td><td class="r">${fmt0(c.u.lista)}</td><td class="r" style="${dl ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.lista)}</td><td class="r">${fmt0(c.u.desc)}</td><td class="r" style="${dd ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.desc)}</td><td class="r">${fmtP((1 - c.desc / c.lista) * 100)}</td><td>${v ? estadoBadge(ventaEstado(v)) + ' <span class="hint" style="margin:0">no se modifica</span>' : ''}</td></tr>`; }).join('') + '</table></div>' : (!errores.length ? '<div class="hint">El archivo no trae cambios de precio respecto de la lista vigente.</div>' : ''))
+      + (preciosPendientes && cambios.length ? `<div class="actions" style="margin-top:10px;"><button class="btn-primary" onclick="aplicarPrecios()">Aplicar ${cambios.length} cambio${cambios.length === 1 ? '' : 's'} de precio</button><button class="btn-secondary" onclick="cancelarPrecios()">Cancelar</button></div>` : '');
+  } catch (e) { preciosPendientes = null; prev.innerHTML = `<div class="warn" style="display:block;">${esc(e.message)}</div>`; }
+  input.value = '';
+}
+function cancelarPrecios() { preciosPendientes = null; document.getElementById('precios-preview').innerHTML = ''; }
+async function aplicarPrecios() {
+  const p = preciosPendientes; if (!p) return;
+  if (!window.confirm(`¿Aplicar la nueva lista de precios (${p.n} unidades)? Las ventas registradas y las cotizaciones ya emitidas no cambian; las cotizaciones nuevas usarán los precios cargados.`)) return;
+  try {
+    // Las unidades que no vienen en el archivo conservan el precio vigente (cargado o original).
+    const precios = {}; UNITS.forEach(u => { precios[uKey(u)] = p.precios[uKey(u)] || { lista: u.lista, desc: u.desc }; });
+    await api('POST', '/api/precios', { precios, archivo: p.archivo });
+    cancelarPrecios();
+    toast('Lista de precios actualizada');
+    await loadState(); renderPreciosInfo();
+  } catch (e) { if (e.message !== 'PIN' && e.message !== 'login') toast('No se pudo aplicar: ' + e.message, true); }
+}
+async function restaurarPrecios() {
+  if (!window.confirm(`¿Volver a la lista de precios original del ${PRICE_DATE}? Se descartan los precios cargados.`)) return;
+  try { await api('DELETE', '/api/precios'); cancelarPrecios(); toast('Lista de precios original restaurada'); await loadState(); renderPreciosInfo(); }
+  catch (e) { if (e.message !== 'PIN' && e.message !== 'login') toast('No se pudo restaurar: ' + e.message, true); }
 }
 
 // --- gráficos SVG (sin librerías: imprimen nítidos y funcionan sin internet) ---
@@ -1508,7 +1626,7 @@ function renderInforme() {
         <table class="tbl"><tr><th>Estado</th><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Cliente</th><th>Desde</th><th>Nota</th><th>Por</th></tr>
         ${ventasOrden.length ? ventasOrden.map(x => `<tr><td>${estadoBadge(x.e)}</td><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${esc(x.v.cliente && x.v.cliente.nombre) || '—'}</td><td>${fmtDT(x.v.estadoFecha || x.v.fecha).slice(0, 10)}</td><td>${esc(ventaNota(x.v)) || '—'}</td><td>${esc(x.v.estadoPor || x.v.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="8" class="hint">No hay ventas registradas.</td></tr>'}</table></div>
     </div>
-    <div class="rep-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Lista de precios ${PRICE_DATE} · ${STATE.cotizaciones.length} cotizaciones · ${STATE.clientes.length} clientes</span></div>`;
+    <div class="rep-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Lista de precios ${priceDateLabel()} · ${STATE.cotizaciones.length} cotizaciones · ${STATE.clientes.length} clientes</span></div>`;
   render3D({ report: true, svg: document.getElementById('rep-3d-svg'), cam: { yaw: -32, pitch: 32, explode: 0 } });        // por delante (sur-este)
   render3D({ report: true, svg: document.getElementById('rep-3d-svg-back'), cam: { yaw: 148, pitch: 32, explode: 0 } });   // por detrás (norte-oeste)
 }

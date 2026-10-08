@@ -78,6 +78,9 @@ Todas las rutas (salvo login, `/api/me` y `/healthz`) exigen sesión; sin ella r
 | GET | `/api/me` | Usuario de la sesión actual. |
 | GET | `/api/state` | Usuario, bloqueos, clientes y resumen de cotizaciones. |
 | GET | `/api/admin/usuarios` | (admin) Usuarios, estado en línea, última actividad y últimos ingresos. |
+| POST | `/api/precios/xlsx` | (admin) Genera el Excel de la lista de precios con estado de venta y comprador (las filas las arma la página). |
+| POST | `/api/precios/parse` | (admin) Lee un Excel subido (base64) y devuelve sus filas. |
+| POST / DELETE | `/api/precios` | (admin) Guarda la lista de precios cargada (`{ precios: { "6-01-O": { lista, desc } } }`) o vuelve a la lista original. |
 | POST | `/api/bloqueos` | `{ key, blocked, estado, cliente, nota }` registra o actualiza una venta (`blocked: false` la libera). |
 | GET / POST / DELETE | `/api/clientes`, `/api/clientes/:id` | Clientes guardados. |
 | GET | `/api/clientes.xlsx` | Exporta clientes a Excel. |
@@ -87,6 +90,12 @@ Todas las rutas (salvo login, `/api/me` y `/healthz`) exigen sesión; sin ella r
 | GET | `/api/cotizaciones.xlsx` | Exporta cotizaciones a Excel. |
 | GET | `/api/uf` | Valor UF del día (caché de 6 horas). |
 | GET / POST | `/api/backup`, `/api/restore` | (admin) Respaldo y restauración de la base de datos. |
+
+## Lista de precios desde Administración
+
+En la pestaña Administración, la sección **Lista de precios** permite descargar un Excel con todas las unidades (precio de lista, precio con descuento, estado de venta y comprador) y cargar un Excel con el mismo formato para cambiar precios de lista o descuentos. La página muestra una vista previa de los cambios antes de aplicarlos. Los precios cargados se guardan en `db.json` (`precios`) y reemplazan a los de `index.html` al cotizar; las ventas registradas y las cotizaciones ya emitidas no se modifican. "Volver a la lista original" elimina los precios cargados.
+
+Columnas que se leen al cargar: **Piso**, **Unidad**, **Lado** (o **Código**, p. ej. `601O`) y **Precio lista UF**, **Precio descuento UF**. Las demás columnas se ignoran.
 
 ## Fichas por piso
 
