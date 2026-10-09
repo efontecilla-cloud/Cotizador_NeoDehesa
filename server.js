@@ -204,8 +204,15 @@ app.post('/api/precios', requireAdmin, requirePin, (req, res) => {
   const db = loadDb();
   db.precios = precios;
   db.preciosInfo = { fecha: nowIso(), usuario: req.user.usuario, archivo: String(b.archivo || '').slice(0, 120), n: Object.keys(precios).length };
+  // Precio de venta (cierre) de ventas ya registradas, si el archivo lo trae: solo se toca ese campo.
+  let nVentas = 0;
+  for (const [k, val] of Object.entries(b.ventas || {})) {
+    const v = db.blocked[k]; const n = Number(val);
+    if (!v || !(n > 0)) continue;
+    v.precioCierre = Math.round(n * 100) / 100; v.precioCierrePor = req.user.usuario; v.actualizada = nowIso(); nVentas++;
+  }
   saveDb(db);
-  res.json({ ok: true, preciosInfo: db.preciosInfo });
+  res.json({ ok: true, preciosInfo: db.preciosInfo, nVentas });
 });
 app.delete('/api/precios', requireAdmin, requirePin, (req, res) => {
   const db = loadDb();
@@ -219,7 +226,7 @@ app.delete('/api/precios', requireAdmin, requirePin, (req, res) => {
 // El mismo POST crea la venta (blocked: true) o la actualiza si ya existe; blocked: false la libera.
 const ESTADOS_VENTA = ['bloqueado', 'reservado', 'promesa'];
 app.post('/api/bloqueos', requirePin, (req, res) => {
-  const { key, blocked, estado, cliente, nota, motivo, unidad } = req.body || {};
+  const { key, blocked, estado, cliente, nota, motivo, unidad, precioCierre, nEst, nBod } = req.body || {};
   if (!key) return res.status(400).json({ error: 'key requerida' });
   const db = loadDb();
   if (!blocked) { delete db.blocked[key]; saveDb(db); return res.json({ ok: true, blocked: db.blocked }); }
@@ -235,6 +242,10 @@ app.post('/api/bloqueos', requirePin, (req, res) => {
     v.cliente = { id: cl.id || null, nombre: String(cl.nombre || '').trim(), rut: String(cl.rut || '').trim(), contacto: String(cl.contacto || '').trim() };
   }
   if (nota !== undefined || motivo !== undefined) v.nota = String(nota !== undefined ? nota : motivo || '').trim().slice(0, 500);
+  // Condiciones de cierre (editables por la vendedora): precio de cierre en UF, estacionamientos y bodegas.
+  if (precioCierre !== undefined) { const n = Number(precioCierre); v.precioCierre = n > 0 ? Math.round(n * 100) / 100 : null; }
+  if (nEst !== undefined) v.nEst = Math.max(0, Math.min(10, parseInt(nEst, 10) || 0));
+  if (nBod !== undefined) v.nBod = Math.max(0, Math.min(10, parseInt(nBod, 10) || 0));
   if (unidad) v.unidad = unidad;
   v.actualizada = nowIso();
   db.blocked[key] = v;
@@ -246,6 +257,7 @@ app.get('/api/ventas.xlsx', (req, res) => {
   const rows = Object.entries(db.blocked).map(([k, v]) => ({
     'Unidad': (v.unidad && v.unidad.label) || k, 'Piso': v.unidad && v.unidad.piso, 'Tipología': v.unidad && v.unidad.tipologia,
     'Estado': cap(v.estado || 'bloqueado'), 'Fecha estado': fmtDate(v.estadoFecha || v.fecha), 'Cambiado por': v.estadoPor || v.usuario || '',
+    'Precio venta UF': v.precioCierre || '', 'Estacionamientos': v.nEst || 0, 'Bodegas': v.nBod || 0,
     'Cliente': v.cliente && v.cliente.nombre, 'RUT': v.cliente && v.cliente.rut, 'Contacto': v.cliente && v.cliente.contacto,
     'Nota': v.nota || v.motivo || '', 'Registrada': fmtDate(v.fecha), 'Registrada por': v.usuario || ''
   }));

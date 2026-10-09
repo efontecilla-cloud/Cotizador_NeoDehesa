@@ -95,7 +95,7 @@ Todas las rutas (salvo login, `/api/me` y `/healthz`) exigen sesión; sin ella r
 
 En la pestaña Administración, la sección **Lista de precios** permite descargar un Excel con todas las unidades (precio de lista, precio con descuento, estado de venta y comprador) y cargar un Excel con el mismo formato para cambiar precios de lista o descuentos. La página muestra una vista previa de los cambios antes de aplicarlos. Los precios cargados se guardan en `db.json` (`precios`) y reemplazan a los de `index.html` al cotizar; las ventas registradas y las cotizaciones ya emitidas no se modifican. "Volver a la lista original" elimina los precios cargados.
 
-Columnas que se leen al cargar: **Piso**, **Unidad**, **Lado** (o **Código**, p. ej. `601O`) y **Precio lista UF**, **Precio descuento UF**. Las demás columnas se ignoran.
+Columnas que se leen al cargar: **Piso**, **Unidad**, **Lado** (o **Código**, p. ej. `601O`) y **Precio lista UF**, **Precio descuento UF**. Si viene la columna **Precio venta UF**, actualiza el precio de venta (cierre) de las ventas ya registradas, el mismo campo que la vendedora edita en la pestaña Ventas junto con la cantidad de estacionamientos y bodegas. Las demás columnas se ignoran.
 
 ## Fichas por piso
 

@@ -388,6 +388,7 @@
         <a class="btn-primary btn-sm" style="text-decoration:none; display:inline-block;" href="/api/ventas.xlsx">Exportar a Excel</a>
         <span class="hint" id="venta-info" style="margin:0"></span>
       </div>
+      <div class="kpis" id="venta-totales" style="margin-bottom:12px;"></div>
       <div style="overflow-x:auto;"><table class="tbl" id="tbl-sold"></table></div>
     </div>
   </div>
@@ -413,7 +414,7 @@
 
     <div class="card no-print-report">
       <h2>Lista de precios</h2>
-      <div class="sub">Descarga el Excel con todas las unidades (precio de lista, precio con descuento, estado de venta y comprador). Para cambiar precios o descuentos, edita las columnas <b>Precio lista UF</b> y <b>Precio descuento UF</b> de ese mismo archivo y vuelve a cargarlo: verás una vista previa antes de aplicar. Las ventas registradas y las cotizaciones ya emitidas no se modifican.</div>
+      <div class="sub">Descarga el Excel con todas las unidades (precio de lista, precio con descuento, estado de venta, precio de venta y comprador). Para cambiar precios o descuentos, edita las columnas <b>Precio lista UF</b> y <b>Precio descuento UF</b> de ese mismo archivo y vuelve a cargarlo: verás una vista previa antes de aplicar. La columna <b>Precio venta UF</b> actualiza el precio de venta de las ventas ya registradas (el mismo que se edita en la pestaña Ventas); el resto de la venta y las cotizaciones ya emitidas no se modifican.</div>
       <div class="bar">
         <button class="btn-primary btn-sm" onclick="descargarPrecios()">Descargar Excel de precios</button>
         <label class="btn-secondary btn-sm" style="cursor:pointer;">Cargar Excel de precios <input type="file" id="precios-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="cargarPrecios(this)"></label>
@@ -445,6 +446,8 @@
     <div class="row"><label>RUT</label><input type="text" id="edit-rut" placeholder="opcional"></div>
     <div class="row"><label>Email / fono</label><input type="text" id="edit-contacto" placeholder="opcional"></div>
     <div class="row"><label></label><label style="width:auto; display:flex; align-items:center; gap:6px; color:#334155;"><input type="checkbox" id="edit-guardar-cli" style="flex:0"> Guardar también en la lista de clientes</label></div>
+    <div class="row"><label>Precio de venta (UF)</label><input type="number" id="edit-cierre" min="0" step="0.01" placeholder="precio de cierre acordado, en UF"><span class="hint" id="edit-cierre-ref" style="margin:0; white-space:nowrap;"></span></div>
+    <div class="row"><label>Estacionamientos</label><input type="number" id="edit-est" min="0" max="10" step="1" style="max-width:90px;"><label style="width:auto;">Bodegas</label><input type="number" id="edit-bod" min="0" max="10" step="1" style="max-width:90px;"></div>
     <div class="row"><label>Nota</label><textarea id="edit-nota" rows="2" placeholder="opcional (p. ej. fecha de la promesa, banco, observaciones)"></textarea></div>
     <div class="foot"><button class="btn-secondary" onclick="cerrarEdicion()">Cancelar</button><button class="btn-primary" onclick="guardarEdicion()">Guardar</button></div>
   </div>
@@ -772,6 +775,12 @@ function abrirVenta(k, nueva) {
   document.getElementById('edit-nombre').value = cl.nombre || (guardado && guardado.nombre) || ''; document.getElementById('edit-rut').value = cl.rut || (guardado && guardado.rut) || ''; document.getElementById('edit-contacto').value = cl.contacto || (guardado && guardado.contacto) || '';
   document.getElementById('edit-guardar-cli').checked = false;
   document.getElementById('edit-nota').value = ventaNota(v);
+  // Condiciones de cierre: en una venta nueva se proponen el precio con descuento y los adicionales del formulario de cotización.
+  const nEstForm = parseInt(document.getElementById('n-est').value || '0', 10) || 0, nBodForm = parseInt(document.getElementById('n-bod').value || '0', 10) || 0;
+  document.getElementById('edit-cierre').value = v ? (v.precioCierre || '') : u.desc;
+  document.getElementById('edit-est').value = v ? (v.nEst || 0) : nEstForm;
+  document.getElementById('edit-bod').value = v ? (v.nBod || 0) : nBodForm;
+  document.getElementById('edit-cierre-ref').textContent = `lista UF ${fmt0(u.lista)} · con dcto UF ${fmt0(u.desc)}`;
   document.getElementById('edit-bg').classList.add('open');
   document.getElementById('edit-nombre').focus();
 }
@@ -794,7 +803,10 @@ async function guardarEdicion() {
       const nuevo = await api('POST', '/api/clientes', { nombre, rut, contacto });
       clId = nuevo.id;
     }
-    await api('POST', '/api/bloqueos', { key: editKey, blocked: true, estado: editEstado, cliente: { id: clId, nombre, rut, contacto }, nota: document.getElementById('edit-nota').value, unidad: { label: uLabel(u), piso: u.piso, tipologia: u.tipologia, orientacion: u.orientacion } });
+    const precioCierre = parseFloat(document.getElementById('edit-cierre').value) || null;
+    await api('POST', '/api/bloqueos', { key: editKey, blocked: true, estado: editEstado, cliente: { id: clId, nombre, rut, contacto }, nota: document.getElementById('edit-nota').value,
+      precioCierre, nEst: parseInt(document.getElementById('edit-est').value || '0', 10) || 0, nBod: parseInt(document.getElementById('edit-bod').value || '0', 10) || 0,
+      unidad: { label: uLabel(u), piso: u.piso, tipologia: u.tipologia, orientacion: u.orientacion } });
     cerrarEdicion();
     toast(`${uLabel(u)}: venta ${editNueva ? 'registrada' : 'actualizada'} (${estadoLabel(editEstado)})`);
     if (editNueva && selected && uKey(selected) === editKey) selected = null;
@@ -815,10 +827,19 @@ function renderVendidos() {
     .sort((a, b) => ((STATE.blocked[b].estadoFecha || STATE.blocked[b].fecha) || '').localeCompare((STATE.blocked[a].estadoFecha || STATE.blocked[a].fecha) || ''));
   const tot = Object.keys(STATE.blocked).length;
   document.getElementById('venta-info').textContent = `${keys.length} de ${tot} ventas · ${ESTADOS.map(([v, l]) => `${Object.values(STATE.blocked).filter(x => ventaEstado(x) === v).length} ${l.toLowerCase()}`).join(' · ')}`;
+  // Totales (de las ventas que se muestran): precio de cierre, precio de lista de referencia, estacionamientos y bodegas.
+  const sum = f => keys.reduce((s, k) => s + (f(STATE.blocked[k], unitByKey[k] || {}) || 0), 0);
+  const totCierre = sum(v => v.precioCierre), conCierre = keys.filter(k => STATE.blocked[k].precioCierre > 0).length, totLista = sum((v, u) => u.lista), totDesc = sum((v, u) => u.desc), totEst = sum(v => v.nEst), totBod = sum(v => v.nBod);
+  document.getElementById('venta-totales').innerHTML = `
+    <div class="kpi"><div class="k">Ventas</div><div class="v">${keys.length}</div><div class="s">${keys.length === tot ? 'todas' : 'de ' + tot + ' registradas'}</div></div>
+    <div class="kpi"><div class="k">Total precio de venta</div><div class="v">UF ${fmt0(totCierre)}</div><div class="s">${conCierre} con precio de venta${conCierre < keys.length ? ' · ' + (keys.length - conCierre) + ' sin definir' : ''}</div></div>
+    <div class="kpi"><div class="k">Referencia lista / dcto</div><div class="v" style="font-size:18px;">UF ${fmt0(totLista)} / ${fmt0(totDesc)}</div><div class="s">${totCierre && totLista ? 'cierre = ' + fmtP(totCierre / totLista * 100) + ' de la lista' : 'precios de la lista vigente'}</div></div>
+    <div class="kpi"><div class="k">Estacionamientos</div><div class="v">${totEst}</div><div class="s">UF ${fmt0(totEst * EXTRAS.est.uf)} a precio de lista</div></div>
+    <div class="kpi"><div class="k">Bodegas</div><div class="v">${totBod}</div><div class="s">UF ${fmt0(totBod * EXTRAS.bod.uf)} a precio de lista</div></div>`;
   if (!keys.length) { t.innerHTML = `<tr><td class="hint" style="padding:14px;">${tot ? 'Ninguna venta coincide con el filtro.' : 'No hay ventas registradas.'}</td></tr>`; return; }
-  t.innerHTML = '<tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Orientación</th><th>Estado</th><th>Desde</th><th>Cliente</th><th>Contacto</th><th>Nota</th><th>Por</th><th></th></tr>' + keys.map(k => {
+  t.innerHTML = '<tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Estado</th><th>Desde</th><th>Cliente</th><th>Contacto</th><th class="r">Lista UF</th><th class="r">Venta UF</th><th class="r">Est.</th><th class="r">Bod.</th><th>Nota</th><th>Por</th><th></th></tr>' + keys.map(k => {
     const u = unitByKey[k] || {}, v = STATE.blocked[k], cl = v.cliente || {};
-    return `<tr><td><b>${u.unidad ? uLabel(u) : k}</b></td><td>${u.piso || ''}°</td><td>${esc(u.tipologia)}</td><td>${esc(u.orientacion)}</td><td>${estadoBadge(ventaEstado(v))}</td><td>${fmtDT(v.estadoFecha || v.fecha).slice(0, 10)}</td><td>${esc(cl.nombre) || '<span class="hint" style="margin:0">sin cliente</span>'}${cl.rut ? `<div class="hint" style="margin:0">${esc(cl.rut)}</div>` : ''}</td><td>${esc(cl.contacto) || '—'}</td><td>${esc(ventaNota(v)) || '—'}</td><td>${esc(v.estadoPor || v.usuario || '')}</td>
+    return `<tr><td><b>${u.unidad ? uLabel(u) : k}</b></td><td>${u.piso || ''}°</td><td>${esc(u.tipologia)}<div class="hint" style="margin:0">${esc(u.orientacion)}</div></td><td>${estadoBadge(ventaEstado(v))}</td><td>${fmtDT(v.estadoFecha || v.fecha).slice(0, 10)}</td><td>${esc(cl.nombre) || '<span class="hint" style="margin:0">sin cliente</span>'}${cl.rut ? `<div class="hint" style="margin:0">${esc(cl.rut)}</div>` : ''}</td><td>${esc(cl.contacto) || '—'}</td><td class="r">${u.lista ? fmt0(u.lista) : ''}</td><td class="r">${v.precioCierre > 0 ? '<b>' + fmt0(v.precioCierre) + '</b>' : '<span class="hint" style="margin:0">—</span>'}</td><td class="r">${v.nEst || 0}</td><td class="r">${v.nBod || 0}</td><td>${esc(ventaNota(v)) || '—'}</td><td>${esc(v.estadoPor || v.usuario || '')}</td>
       <td style="white-space:nowrap;"><button class="btn-secondary btn-sm" onclick="editarVenta('${k}')">Estado / cliente</button> <button class="btn-secondary btn-sm" onclick="liberar('${k}')">Liberar</button></td></tr>`;
   }).join('');
 }
@@ -1378,6 +1399,7 @@ function filasPrecios() {
       'Precio lista UF': u.lista, 'Precio descuento UF': u.desc, 'Dcto %': Math.round((1 - u.desc / u.lista) * 1000) / 10,
       'Precio lista original UF': u.lista0, 'Precio descuento original UF': u.desc0,
       'Vendido': v ? 'Sí' : 'No', 'Estado': v ? (ESTADO_VENTA_LABEL[ventaEstado(v)] || 'Bloqueado') : 'Disponible',
+      'Precio venta UF': v && v.precioCierre > 0 ? v.precioCierre : '', 'Estacionamientos': v ? (v.nEst || 0) : '', 'Bodegas': v ? (v.nBod || 0) : '',
       'Comprador': cl.nombre || '', 'RUT': cl.rut || '', 'Contacto': cl.contacto || '',
       'Fecha venta': v ? fmtDT(v.fecha).slice(0, 10) : '', 'Fecha estado': v ? fmtDT(v.estadoFecha || v.fecha).slice(0, 10) : '', 'Nota': v ? ventaNota(v) : '', 'Registrada por': v ? (v.usuario || '') : ''
     };
@@ -1420,8 +1442,9 @@ async function cargarPrecios(input) {
     const headers = Object.keys(filas[0]); const h = {}; headers.forEach(k => h[normHeader(k)] = k);
     const find = (...cands) => { for (const c of cands) { const k = Object.keys(h).find(x => x === c || x.startsWith(c)); if (k) return h[k]; } return null; };
     const cPiso = find('piso'), cUnidad = find('unidad'), cLado = find('lado'), cCodigo = find('codigo'), cLista = find('precio lista uf', 'precio lista', 'lista uf', 'lista'), cDesc = find('precio descuento uf', 'precio descuento', 'precio con descuento', 'descuento uf', 'desc');
+    const cVenta = find('precio venta uf', 'precio venta', 'precio de venta', 'precio cierre uf', 'precio cierre');   // precio de venta de las ventas registradas (opcional)
     if (!cLista || !cDesc || !((cPiso && cUnidad && cLado) || cCodigo)) throw new Error('faltan columnas: se necesitan Piso, Unidad y Lado (o Código) y Precio lista UF, Precio descuento UF. Columnas encontradas: ' + headers.join(', '));
-    const cambios = [], errores = [], iguales = []; const vistos = {}; const precios = {};
+    const cambios = [], errores = [], iguales = [], ventaCambios = [], avisos = []; const vistos = {}; const precios = {}; const ventas = {};
     filas.forEach((f, i) => {
       let key;
       if (cPiso && cUnidad && cLado && String(f[cPiso]).trim() !== '') key = `${String(f[cPiso]).trim()}-${String(f[cUnidad]).trim().padStart(2, '0')}-${String(f[cLado]).trim().toUpperCase()}`;
@@ -1434,27 +1457,39 @@ async function cargarPrecios(input) {
       if (desc > lista) { errores.push(`fila ${i + 2} (${uLabel(u)} piso ${u.piso}°): el precio con descuento (${fmt0(desc)}) es mayor que el de lista (${fmt0(lista)})`); return; }
       precios[key] = { lista: Math.round(lista), desc: Math.round(desc) };
       if (Math.round(lista) !== u.lista || Math.round(desc) !== u.desc) cambios.push({ u, lista: Math.round(lista), desc: Math.round(desc) }); else iguales.push(key);
+      // precio de venta: solo para unidades con venta registrada
+      if (cVenta && String(f[cVenta]).trim() !== '') {
+        const pv = numCell(f[cVenta]); const v = STATE.blocked[key];
+        if (!(pv > 0)) errores.push(`fila ${i + 2} (${uLabel(u)} piso ${u.piso}°): precio de venta no numérico`);
+        else if (!v) avisos.push(`${uLabel(u)} piso ${u.piso}°: trae precio de venta (${fmt0(pv)}) pero no tiene venta registrada; se ignora`);
+        else if (Math.round(pv * 100) !== Math.round((v.precioCierre || 0) * 100)) { ventas[key] = Math.round(pv * 100) / 100; ventaCambios.push({ u, v, nuevo: ventas[key] }); }
+      }
     });
     const faltan = UNITS.filter(u => !precios[uKey(u)]);
-    preciosPendientes = errores.length ? null : { precios, archivo: file.name, n: Object.keys(precios).length };
-    prev.innerHTML = `<div class="hint" style="margin:8px 0 6px 0;"><b>${esc(file.name)}</b> · hoja "${esc(r.hoja)}" · ${filas.length} filas leídas · <b>${cambios.length} unidades cambian</b> · ${iguales.length} sin cambios${faltan.length ? ` · <span style="color:#b45309">${faltan.length} unidades no vienen en el archivo (conservan su precio actual)</span>` : ''}</div>`
+    preciosPendientes = errores.length ? null : { precios, ventas, archivo: file.name, n: Object.keys(precios).length, nCambios: cambios.length, nVentas: ventaCambios.length };
+    prev.innerHTML = `<div class="hint" style="margin:8px 0 6px 0;"><b>${esc(file.name)}</b> · hoja "${esc(r.hoja)}" · ${filas.length} filas leídas · <b>${cambios.length} unidades cambian de precio</b> · ${iguales.length} sin cambios${faltan.length ? ` · <span style="color:#b45309">${faltan.length} unidades no vienen en el archivo (conservan su precio actual)</span>` : ''}${cVenta ? ` · <b>${ventaCambios.length} precios de venta cambian</b>` : ' · el archivo no trae la columna "Precio venta UF"'}</div>`
       + (errores.length ? `<div class="warn" style="display:block; margin-bottom:8px;"><b>No se puede aplicar.</b> Corrige el archivo y vuelve a cargarlo:<br>${errores.slice(0, 15).map(esc).join('<br>')}${errores.length > 15 ? '<br>… y ' + (errores.length - 15) + ' más' : ''}</div>` : '')
-      + (cambios.length ? `<div style="overflow-x:auto; max-height:360px; overflow-y:auto;"><table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th class="r">Lista actual</th><th class="r">Lista nueva</th><th class="r">Dcto actual</th><th class="r">Dcto nuevo</th><th class="r">% dcto nuevo</th><th>Venta</th></tr>`
-        + cambios.map(c => { const v = STATE.blocked[uKey(c.u)]; const dl = c.lista !== c.u.lista, dd = c.desc !== c.u.desc; return `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${esc(c.u.tipologia)}</td><td class="r">${fmt0(c.u.lista)}</td><td class="r" style="${dl ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.lista)}</td><td class="r">${fmt0(c.u.desc)}</td><td class="r" style="${dd ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.desc)}</td><td class="r">${fmtP((1 - c.desc / c.lista) * 100)}</td><td>${v ? estadoBadge(ventaEstado(v)) + ' <span class="hint" style="margin:0">no se modifica</span>' : ''}</td></tr>`; }).join('') + '</table></div>' : (!errores.length ? '<div class="hint">El archivo no trae cambios de precio respecto de la lista vigente.</div>' : ''))
-      + (preciosPendientes && cambios.length ? `<div class="actions" style="margin-top:10px;"><button class="btn-primary" onclick="aplicarPrecios()">Aplicar ${cambios.length} cambio${cambios.length === 1 ? '' : 's'} de precio</button><button class="btn-secondary" onclick="cancelarPrecios()">Cancelar</button></div>` : '');
+      + (avisos.length ? `<div class="hint" style="margin:0 0 8px 0; color:#b45309;">${avisos.slice(0, 10).map(esc).join('<br>')}${avisos.length > 10 ? '<br>… y ' + (avisos.length - 10) + ' más' : ''}</div>` : '')
+      + (ventaCambios.length ? `<div class="hint" style="font-weight:600; color:#334155; margin-top:6px;">Precios de venta que se actualizan en la pestaña Ventas</div><div style="overflow-x:auto; max-height:240px; overflow-y:auto; margin-bottom:8px;"><table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Estado</th><th>Cliente</th><th class="r">Precio venta actual</th><th class="r">Precio venta nuevo</th></tr>`
+        + ventaCambios.map(c => `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${estadoBadge(ventaEstado(c.v))}</td><td>${esc(c.v.cliente && c.v.cliente.nombre) || '—'}</td><td class="r">${c.v.precioCierre > 0 ? fmt0(c.v.precioCierre) : '—'}</td><td class="r" style="font-weight:700;color:#0b2a5b">${fmt0(c.nuevo)}</td></tr>`).join('') + '</table></div>' : '')
+      + (cambios.length ? `<div class="hint" style="font-weight:600; color:#334155; margin-top:6px;">Cambios en la lista de precios</div><div style="overflow-x:auto; max-height:360px; overflow-y:auto;"><table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th class="r">Lista actual</th><th class="r">Lista nueva</th><th class="r">Dcto actual</th><th class="r">Dcto nuevo</th><th class="r">% dcto nuevo</th><th>Venta</th></tr>`
+        + cambios.map(c => { const v = STATE.blocked[uKey(c.u)]; const dl = c.lista !== c.u.lista, dd = c.desc !== c.u.desc; return `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${esc(c.u.tipologia)}</td><td class="r">${fmt0(c.u.lista)}</td><td class="r" style="${dl ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.lista)}</td><td class="r">${fmt0(c.u.desc)}</td><td class="r" style="${dd ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.desc)}</td><td class="r">${fmtP((1 - c.desc / c.lista) * 100)}</td><td>${v ? estadoBadge(ventaEstado(v)) + ' <span class="hint" style="margin:0">la venta no cambia</span>' : ''}</td></tr>`; }).join('') + '</table></div>' : (!errores.length && !ventaCambios.length ? '<div class="hint">El archivo no trae cambios respecto de la lista vigente ni de los precios de venta.</div>' : ''))
+      + (preciosPendientes && (cambios.length || ventaCambios.length) ? `<div class="actions" style="margin-top:10px;"><button class="btn-primary" onclick="aplicarPrecios()">Aplicar${cambios.length ? ` ${cambios.length} cambio${cambios.length === 1 ? '' : 's'} de precio` : ''}${cambios.length && ventaCambios.length ? ' y' : ''}${ventaCambios.length ? ` ${ventaCambios.length} precio${ventaCambios.length === 1 ? '' : 's'} de venta` : ''}</button><button class="btn-secondary" onclick="cancelarPrecios()">Cancelar</button></div>` : '');
   } catch (e) { preciosPendientes = null; prev.innerHTML = `<div class="warn" style="display:block;">${esc(e.message)}</div>`; }
   input.value = '';
 }
 function cancelarPrecios() { preciosPendientes = null; document.getElementById('precios-preview').innerHTML = ''; }
 async function aplicarPrecios() {
   const p = preciosPendientes; if (!p) return;
-  if (!window.confirm(`¿Aplicar la nueva lista de precios (${p.n} unidades)? Las ventas registradas y las cotizaciones ya emitidas no cambian; las cotizaciones nuevas usarán los precios cargados.`)) return;
+  const msg = (p.nCambios ? `¿Aplicar la nueva lista de precios (${p.nCambios} unidades cambian)? Las cotizaciones ya emitidas no cambian; las nuevas usarán los precios cargados.` : '¿Aplicar los cambios?')
+    + (p.nVentas ? ` Además se actualiza el precio de venta de ${p.nVentas} venta${p.nVentas === 1 ? '' : 's'} registrada${p.nVentas === 1 ? '' : 's'} (solo ese campo).` : ' Las ventas registradas no cambian.');
+  if (!window.confirm(msg)) return;
   try {
     // Las unidades que no vienen en el archivo conservan el precio vigente (cargado o original).
     const precios = {}; UNITS.forEach(u => { precios[uKey(u)] = p.precios[uKey(u)] || { lista: u.lista, desc: u.desc }; });
-    await api('POST', '/api/precios', { precios, archivo: p.archivo });
+    await api('POST', '/api/precios', { precios, ventas: p.ventas || {}, archivo: p.archivo });
     cancelarPrecios();
-    toast('Lista de precios actualizada');
+    toast(p.nVentas ? `Lista de precios y ${p.nVentas} precio${p.nVentas === 1 ? '' : 's'} de venta actualizados` : 'Lista de precios actualizada');
     await loadState(); renderPreciosInfo();
   } catch (e) { if (e.message !== 'PIN' && e.message !== 'login') toast('No se pudo aplicar: ' + e.message, true); }
 }
@@ -1623,8 +1658,9 @@ function renderInforme() {
         ${byTipo.map(r => `<tr><td><b>${esc(r.label)}</b></td><td class="r">${r.a + r.b}</td><td class="r">${r.a}</td><td class="r">${r.b}</td><td class="r">${r.a + r.b ? Math.round(r.a / (r.a + r.b) * 100) : 0}%</td></tr>`).join('')}
         <tr style="font-weight:700;"><td>Total</td><td class="r">${UNITS.length}</td><td class="r">${nSold}</td><td class="r">${nFree}</td><td class="r">${Math.round(nSold / UNITS.length * 100)}%</td></tr></table></div>
       <div class="fig"><h4>Detalle de ventas</h4><div class="sub">Departamentos vendidos agrupados por estado (Promesa, Reservado, Bloqueado) y del cambio más reciente al más antiguo.</div>
-        <table class="tbl"><tr><th>Estado</th><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Cliente</th><th>Desde</th><th>Nota</th><th>Por</th></tr>
-        ${ventasOrden.length ? ventasOrden.map(x => `<tr><td>${estadoBadge(x.e)}</td><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${esc(x.v.cliente && x.v.cliente.nombre) || '—'}</td><td>${fmtDT(x.v.estadoFecha || x.v.fecha).slice(0, 10)}</td><td>${esc(ventaNota(x.v)) || '—'}</td><td>${esc(x.v.estadoPor || x.v.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="8" class="hint">No hay ventas registradas.</td></tr>'}</table></div>
+        <table class="tbl"><tr><th>Estado</th><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Cliente</th><th>Desde</th><th class="r">Venta UF</th><th class="r">Est.</th><th class="r">Bod.</th><th>Nota</th><th>Por</th></tr>
+        ${ventasOrden.length ? ventasOrden.map(x => `<tr><td>${estadoBadge(x.e)}</td><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${esc(x.v.cliente && x.v.cliente.nombre) || '—'}</td><td>${fmtDT(x.v.estadoFecha || x.v.fecha).slice(0, 10)}</td><td class="r">${x.v.precioCierre > 0 ? fmt0(x.v.precioCierre) : '—'}</td><td class="r">${x.v.nEst || 0}</td><td class="r">${x.v.nBod || 0}</td><td>${esc(ventaNota(x.v)) || '—'}</td><td>${esc(x.v.estadoPor || x.v.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="11" class="hint">No hay ventas registradas.</td></tr>'}
+        ${ventasOrden.length ? `<tr style="font-weight:700;"><td colspan="6">Total</td><td class="r">${fmt0(ventasOrden.reduce((s, x) => s + (x.v.precioCierre || 0), 0))}</td><td class="r">${ventasOrden.reduce((s, x) => s + (x.v.nEst || 0), 0)}</td><td class="r">${ventasOrden.reduce((s, x) => s + (x.v.nBod || 0), 0)}</td><td colspan="2"></td></tr>` : ''}</table></div>
     </div>
     <div class="rep-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Lista de precios ${priceDateLabel()} · ${STATE.cotizaciones.length} cotizaciones · ${STATE.clientes.length} clientes</span></div>`;
   render3D({ report: true, svg: document.getElementById('rep-3d-svg'), cam: { yaw: -32, pitch: 32, explode: 0 } });        // por delante (sur-este)
