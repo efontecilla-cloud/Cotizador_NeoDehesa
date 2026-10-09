@@ -204,12 +204,17 @@ app.post('/api/precios', requireAdmin, requirePin, (req, res) => {
   const db = loadDb();
   db.precios = precios;
   db.preciosInfo = { fecha: nowIso(), usuario: req.user.usuario, archivo: String(b.archivo || '').slice(0, 120), n: Object.keys(precios).length };
-  // Precio de venta (cierre) de ventas ya registradas, si el archivo lo trae: solo se toca ese campo.
+  // Condiciones de ventas ya registradas, si el archivo las trae: precio de venta, estacionamientos y bodegas.
+  // Se acepta { clave: precio } o { clave: { precio, nEst, nBod } }; solo se tocan los campos que vienen.
   let nVentas = 0;
   for (const [k, val] of Object.entries(b.ventas || {})) {
-    const v = db.blocked[k]; const n = Number(val);
-    if (!v || !(n > 0)) continue;
-    v.precioCierre = Math.round(n * 100) / 100; v.precioCierrePor = req.user.usuario; v.actualizada = nowIso(); nVentas++;
+    const v = db.blocked[k]; if (!v) continue;
+    const o = (val && typeof val === 'object') ? val : { precio: val };
+    let tocada = false;
+    if (o.precio !== undefined && Number(o.precio) > 0) { v.precioCierre = Math.round(Number(o.precio) * 100) / 100; v.precioCierrePor = req.user.usuario; tocada = true; }
+    if (o.nEst !== undefined && !isNaN(parseInt(o.nEst, 10))) { v.nEst = Math.max(0, Math.min(10, parseInt(o.nEst, 10))); tocada = true; }
+    if (o.nBod !== undefined && !isNaN(parseInt(o.nBod, 10))) { v.nBod = Math.max(0, Math.min(10, parseInt(o.nBod, 10))); tocada = true; }
+    if (tocada) { v.actualizada = nowIso(); nVentas++; }
   }
   saveDb(db);
   res.json({ ok: true, preciosInfo: db.preciosInfo, nVentas });

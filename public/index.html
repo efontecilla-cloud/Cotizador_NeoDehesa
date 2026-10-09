@@ -414,7 +414,7 @@
 
     <div class="card no-print-report">
       <h2>Lista de precios</h2>
-      <div class="sub">Descarga el Excel con todas las unidades (precio de lista, precio con descuento, estado de venta, precio de venta y comprador). Para cambiar precios o descuentos, edita las columnas <b>Precio lista UF</b> y <b>Precio descuento UF</b> de ese mismo archivo y vuelve a cargarlo: verás una vista previa antes de aplicar. La columna <b>Precio venta UF</b> actualiza el precio de venta de las ventas ya registradas (el mismo que se edita en la pestaña Ventas); el resto de la venta y las cotizaciones ya emitidas no se modifican.</div>
+      <div class="sub">Descarga el Excel con todas las unidades (precio de lista, precio con descuento, estado de venta, precio de venta y comprador). Para cambiar precios o descuentos, edita las columnas <b>Precio lista UF</b> y <b>Precio descuento UF</b> de ese mismo archivo y vuelve a cargarlo: verás una vista previa antes de aplicar. Las columnas <b>Precio venta UF</b>, <b>Estacionamientos</b> y <b>Bodegas</b> actualizan esos datos en las ventas ya registradas (los mismos que se editan en la pestaña Ventas); el resto de la venta y las cotizaciones ya emitidas no se modifican.</div>
       <div class="bar">
         <button class="btn-primary btn-sm" onclick="descargarPrecios()">Descargar Excel de precios</button>
         <label class="btn-secondary btn-sm" style="cursor:pointer;">Cargar Excel de precios <input type="file" id="precios-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="cargarPrecios(this)"></label>
@@ -1439,10 +1439,11 @@ async function cargarPrecios(input) {
     const r = await api('POST', '/api/precios/parse', { base64, nombre: file.name });
     const filas = r.filas || [];
     if (!filas.length) throw new Error('el archivo no tiene filas');
-    const headers = Object.keys(filas[0]); const h = {}; headers.forEach(k => h[normHeader(k)] = k);
+    const headers = [...new Set(filas.flatMap(f => Object.keys(f)))]; const h = {}; headers.forEach(k => { if (!(normHeader(k) in h)) h[normHeader(k)] = k; });
     const find = (...cands) => { for (const c of cands) { const k = Object.keys(h).find(x => x === c || x.startsWith(c)); if (k) return h[k]; } return null; };
     const cPiso = find('piso'), cUnidad = find('unidad'), cLado = find('lado'), cCodigo = find('codigo'), cLista = find('precio lista uf', 'precio lista', 'lista uf', 'lista'), cDesc = find('precio descuento uf', 'precio descuento', 'precio con descuento', 'descuento uf', 'desc');
     const cVenta = find('precio venta uf', 'precio venta', 'precio de venta', 'precio cierre uf', 'precio cierre');   // precio de venta de las ventas registradas (opcional)
+    const cEst = find('estacionamientos', 'estacionamiento'), cBod = find('bodegas', 'bodega');                        // cantidades de las ventas registradas (opcional)
     if (!cLista || !cDesc || !((cPiso && cUnidad && cLado) || cCodigo)) throw new Error('faltan columnas: se necesitan Piso, Unidad y Lado (o Código) y Precio lista UF, Precio descuento UF. Columnas encontradas: ' + headers.join(', '));
     const cambios = [], errores = [], iguales = [], ventaCambios = [], avisos = []; const vistos = {}; const precios = {}; const ventas = {};
     filas.forEach((f, i) => {
@@ -1457,24 +1458,34 @@ async function cargarPrecios(input) {
       if (desc > lista) { errores.push(`fila ${i + 2} (${uLabel(u)} piso ${u.piso}°): el precio con descuento (${fmt0(desc)}) es mayor que el de lista (${fmt0(lista)})`); return; }
       precios[key] = { lista: Math.round(lista), desc: Math.round(desc) };
       if (Math.round(lista) !== u.lista || Math.round(desc) !== u.desc) cambios.push({ u, lista: Math.round(lista), desc: Math.round(desc) }); else iguales.push(key);
-      // precio de venta: solo para unidades con venta registrada
-      if (cVenta && String(f[cVenta]).trim() !== '') {
-        const pv = numCell(f[cVenta]); const v = STATE.blocked[key];
+      // condiciones de venta (precio de venta, estacionamientos, bodegas): solo para unidades con venta registrada
+      const v = STATE.blocked[key]; const cambio = {};
+      const vacia = x => x === undefined || x === null || String(x).trim() === '';
+      if (cVenta && !vacia(f[cVenta])) {
+        const pv = numCell(f[cVenta]);
         if (!(pv > 0)) errores.push(`fila ${i + 2} (${uLabel(u)} piso ${u.piso}°): precio de venta no numérico`);
         else if (!v) avisos.push(`${uLabel(u)} piso ${u.piso}°: trae precio de venta (${fmt0(pv)}) pero no tiene venta registrada; se ignora`);
-        else if (Math.round(pv * 100) !== Math.round((v.precioCierre || 0) * 100)) { ventas[key] = Math.round(pv * 100) / 100; ventaCambios.push({ u, v, nuevo: ventas[key] }); }
+        else if (Math.round(pv * 100) !== Math.round((v.precioCierre || 0) * 100)) cambio.precio = Math.round(pv * 100) / 100;
       }
+      [[cEst, 'nEst', 'estacionamientos'], [cBod, 'nBod', 'bodegas']].forEach(([col, campo, nombre]) => {
+        if (!col || vacia(f[col])) return;
+        const n = numCell(f[col]);
+        if (isNaN(n) || n < 0 || n > 10 || Math.round(n) !== n) errores.push(`fila ${i + 2} (${uLabel(u)} piso ${u.piso}°): ${nombre} debe ser un número entero entre 0 y 10`);
+        else if (!v) { if (n > 0) avisos.push(`${uLabel(u)} piso ${u.piso}°: trae ${n} ${nombre} pero no tiene venta registrada; se ignora`); }
+        else if (n !== (v[campo] || 0)) cambio[campo] = n;
+      });
+      if (v && Object.keys(cambio).length) { ventas[key] = cambio; ventaCambios.push({ u, v, cambio }); }
     });
     const faltan = UNITS.filter(u => !precios[uKey(u)]);
     preciosPendientes = errores.length ? null : { precios, ventas, archivo: file.name, n: Object.keys(precios).length, nCambios: cambios.length, nVentas: ventaCambios.length };
-    prev.innerHTML = `<div class="hint" style="margin:8px 0 6px 0;"><b>${esc(file.name)}</b> · hoja "${esc(r.hoja)}" · ${filas.length} filas leídas · <b>${cambios.length} unidades cambian de precio</b> · ${iguales.length} sin cambios${faltan.length ? ` · <span style="color:#b45309">${faltan.length} unidades no vienen en el archivo (conservan su precio actual)</span>` : ''}${cVenta ? ` · <b>${ventaCambios.length} precios de venta cambian</b>` : ' · el archivo no trae la columna "Precio venta UF"'}</div>`
+    prev.innerHTML = `<div class="hint" style="margin:8px 0 6px 0;"><b>${esc(file.name)}</b> · hoja "${esc(r.hoja)}" · ${filas.length} filas leídas · <b>${cambios.length} unidades cambian de precio</b> · ${iguales.length} sin cambios${faltan.length ? ` · <span style="color:#b45309">${faltan.length} unidades no vienen en el archivo (conservan su precio actual)</span>` : ''}${(cVenta || cEst || cBod) ? ` · <b>${ventaCambios.length} ventas cambian</b> (columnas: ${[cVenta, cEst, cBod].filter(Boolean).map(c => '"' + esc(c) + '"').join(', ')})` : ' · <span style="color:#b45309">el archivo no trae las columnas Precio venta UF, Estacionamientos ni Bodegas: las ventas no se actualizan</span>'}</div>`
       + (errores.length ? `<div class="warn" style="display:block; margin-bottom:8px;"><b>No se puede aplicar.</b> Corrige el archivo y vuelve a cargarlo:<br>${errores.slice(0, 15).map(esc).join('<br>')}${errores.length > 15 ? '<br>… y ' + (errores.length - 15) + ' más' : ''}</div>` : '')
       + (avisos.length ? `<div class="hint" style="margin:0 0 8px 0; color:#b45309;">${avisos.slice(0, 10).map(esc).join('<br>')}${avisos.length > 10 ? '<br>… y ' + (avisos.length - 10) + ' más' : ''}</div>` : '')
-      + (ventaCambios.length ? `<div class="hint" style="font-weight:600; color:#334155; margin-top:6px;">Precios de venta que se actualizan en la pestaña Ventas</div><div style="overflow-x:auto; max-height:240px; overflow-y:auto; margin-bottom:8px;"><table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Estado</th><th>Cliente</th><th class="r">Precio venta actual</th><th class="r">Precio venta nuevo</th></tr>`
-        + ventaCambios.map(c => `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${estadoBadge(ventaEstado(c.v))}</td><td>${esc(c.v.cliente && c.v.cliente.nombre) || '—'}</td><td class="r">${c.v.precioCierre > 0 ? fmt0(c.v.precioCierre) : '—'}</td><td class="r" style="font-weight:700;color:#0b2a5b">${fmt0(c.nuevo)}</td></tr>`).join('') + '</table></div>' : '')
+      + (ventaCambios.length ? `<div class="hint" style="font-weight:600; color:#334155; margin-top:6px;">Ventas que se actualizan en la pestaña Ventas (actual → nuevo)</div><div style="overflow-x:auto; max-height:240px; overflow-y:auto; margin-bottom:8px;"><table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Estado</th><th>Cliente</th><th class="r">Precio venta UF</th><th class="r">Estacionamientos</th><th class="r">Bodegas</th></tr>`
+        + ventaCambios.map(c => { const cel = (act, nuevo) => nuevo === undefined ? `<td class="r" style="color:#94a3b8">${act}</td>` : `<td class="r">${act} → <b style="color:#0b2a5b">${nuevo}</b></td>`; return `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${estadoBadge(ventaEstado(c.v))}</td><td>${esc(c.v.cliente && c.v.cliente.nombre) || '—'}</td>${cel(c.v.precioCierre > 0 ? fmt0(c.v.precioCierre) : '—', c.cambio.precio !== undefined ? fmt0(c.cambio.precio) : undefined)}${cel(c.v.nEst || 0, c.cambio.nEst)}${cel(c.v.nBod || 0, c.cambio.nBod)}</tr>`; }).join('') + '</table></div>' : '')
       + (cambios.length ? `<div class="hint" style="font-weight:600; color:#334155; margin-top:6px;">Cambios en la lista de precios</div><div style="overflow-x:auto; max-height:360px; overflow-y:auto;"><table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th class="r">Lista actual</th><th class="r">Lista nueva</th><th class="r">Dcto actual</th><th class="r">Dcto nuevo</th><th class="r">% dcto nuevo</th><th>Venta</th></tr>`
         + cambios.map(c => { const v = STATE.blocked[uKey(c.u)]; const dl = c.lista !== c.u.lista, dd = c.desc !== c.u.desc; return `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${esc(c.u.tipologia)}</td><td class="r">${fmt0(c.u.lista)}</td><td class="r" style="${dl ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.lista)}</td><td class="r">${fmt0(c.u.desc)}</td><td class="r" style="${dd ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.desc)}</td><td class="r">${fmtP((1 - c.desc / c.lista) * 100)}</td><td>${v ? estadoBadge(ventaEstado(v)) + ' <span class="hint" style="margin:0">la venta no cambia</span>' : ''}</td></tr>`; }).join('') + '</table></div>' : (!errores.length && !ventaCambios.length ? '<div class="hint">El archivo no trae cambios respecto de la lista vigente ni de los precios de venta.</div>' : ''))
-      + (preciosPendientes && (cambios.length || ventaCambios.length) ? `<div class="actions" style="margin-top:10px;"><button class="btn-primary" onclick="aplicarPrecios()">Aplicar${cambios.length ? ` ${cambios.length} cambio${cambios.length === 1 ? '' : 's'} de precio` : ''}${cambios.length && ventaCambios.length ? ' y' : ''}${ventaCambios.length ? ` ${ventaCambios.length} precio${ventaCambios.length === 1 ? '' : 's'} de venta` : ''}</button><button class="btn-secondary" onclick="cancelarPrecios()">Cancelar</button></div>` : '');
+      + (preciosPendientes && (cambios.length || ventaCambios.length) ? `<div class="actions" style="margin-top:10px;"><button class="btn-primary" onclick="aplicarPrecios()">Aplicar${cambios.length ? ` ${cambios.length} cambio${cambios.length === 1 ? '' : 's'} de precio` : ''}${cambios.length && ventaCambios.length ? ' y' : ''}${ventaCambios.length ? ` ${ventaCambios.length} venta${ventaCambios.length === 1 ? '' : 's'} (precio, estacionamientos o bodegas)` : ''}</button><button class="btn-secondary" onclick="cancelarPrecios()">Cancelar</button></div>` : '');
   } catch (e) { preciosPendientes = null; prev.innerHTML = `<div class="warn" style="display:block;">${esc(e.message)}</div>`; }
   input.value = '';
 }
@@ -1482,14 +1493,15 @@ function cancelarPrecios() { preciosPendientes = null; document.getElementById('
 async function aplicarPrecios() {
   const p = preciosPendientes; if (!p) return;
   const msg = (p.nCambios ? `¿Aplicar la nueva lista de precios (${p.nCambios} unidades cambian)? Las cotizaciones ya emitidas no cambian; las nuevas usarán los precios cargados.` : '¿Aplicar los cambios?')
-    + (p.nVentas ? ` Además se actualiza el precio de venta de ${p.nVentas} venta${p.nVentas === 1 ? '' : 's'} registrada${p.nVentas === 1 ? '' : 's'} (solo ese campo).` : ' Las ventas registradas no cambian.');
+    + (p.nVentas ? ` Además se actualizan precio de venta, estacionamientos o bodegas de ${p.nVentas} venta${p.nVentas === 1 ? '' : 's'} registrada${p.nVentas === 1 ? '' : 's'} (solo esos campos).` : ' Las ventas registradas no cambian.');
   if (!window.confirm(msg)) return;
   try {
     // Las unidades que no vienen en el archivo conservan el precio vigente (cargado o original).
     const precios = {}; UNITS.forEach(u => { precios[uKey(u)] = p.precios[uKey(u)] || { lista: u.lista, desc: u.desc }; });
-    await api('POST', '/api/precios', { precios, ventas: p.ventas || {}, archivo: p.archivo });
+    const r = await api('POST', '/api/precios', { precios, ventas: p.ventas || {}, archivo: p.archivo });
     cancelarPrecios();
-    toast(p.nVentas ? `Lista de precios y ${p.nVentas} precio${p.nVentas === 1 ? '' : 's'} de venta actualizados` : 'Lista de precios actualizada');
+    const nv = r && typeof r.nVentas === 'number' ? r.nVentas : p.nVentas;
+    toast(nv ? `Lista de precios actualizada · ${nv} venta${nv === 1 ? '' : 's'} actualizada${nv === 1 ? '' : 's'}` : (p.nVentas ? 'Lista de precios actualizada · el servidor no actualizó las ventas (versión antigua en línea)' : 'Lista de precios actualizada'), !!(p.nVentas && !nv));
     await loadState(); renderPreciosInfo();
   } catch (e) { if (e.message !== 'PIN' && e.message !== 'login') toast('No se pudo aplicar: ' + e.message, true); }
 }
