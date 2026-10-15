@@ -91,6 +91,12 @@ Todas las rutas (salvo login, `/api/me` y `/healthz`) exigen sesión; sin ella r
 | GET | `/api/uf` | Valor UF del día (caché de 6 horas). |
 | GET / POST | `/api/backup`, `/api/restore` | (admin) Respaldo y restauración de la base de datos. |
 
+## Fusión de departamentos (octubre 2026)
+
+Los 1D de la columna **09-O** se fusionaron con los **08-O** (poniente) y los **12-O** con los **11-O** (oriente), en todos los pisos, en un solo departamento **3D+2B** con las superficies y los precios (lista y descuento) sumados. En `index.html` las unidades fusionadas tienen `"fusion": "08-O + 09-O"` y no tienen ficha (`"ficha": null`), así que la cotización sale sin página de ficha. El edificio quedó en 126 unidades.
+
+Al arrancar, el servidor junta automáticamente (`migrarFusiones`) las ventas y los precios cargados que existan con las claves antiguas (`X-09-O`, `X-12-O`) en la unidad fusionada: suma precio de venta, estacionamientos y bodegas, conserva el estado más avanzado y el cliente, y agrega la nota "Fusión 08-O + 09-O". Las cotizaciones ya emitidas para las unidades antiguas se conservan como historial.
+
 ## Lista de precios desde Administración
 
 En la pestaña Administración, la sección **Lista de precios** permite descargar un Excel con todas las unidades (precio de lista, precio con descuento, estado de venta y comprador) y cargar un Excel con el mismo formato para cambiar precios de lista o descuentos. La página muestra una vista previa de los cambios antes de aplicarlos. Los precios cargados se guardan en `db.json` (`precios`) y reemplazan a los de `index.html` al cotizar; las ventas registradas y las cotizaciones ya emitidas no se modifican. "Volver a la lista original" elimina los precios cargados.

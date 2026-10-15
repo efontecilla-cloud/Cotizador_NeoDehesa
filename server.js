@@ -39,8 +39,53 @@ const safeEq = (a, b) => { const x = Buffer.from(String(a)), y = Buffer.from(Str
 // ---------- base de datos (archivo JSON) ----------
 function emptyDb() { return { seq: 0, blocked: {}, clientes: [], cotizaciones: [], sesiones: {}, accesos: [], precios: {}, preciosInfo: null }; }
 function loadDb() {
-  try { return Object.assign(emptyDb(), JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))); }
+  let db;
+  try { db = Object.assign(emptyDb(), JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))); }
   catch (e) { return emptyDb(); }
+  if (migrarFusiones(db)) saveDb(db);
+  return db;
+}
+
+// ---------- fusión de departamentos (octubre 2026) ----------
+// Los 1D de la columna 09-O se fusionaron con los 08-O (poniente) y los 12-O con los 11-O (oriente) en un solo 3D.
+// Si en la base hay ventas o precios cargados con las claves antiguas, se juntan en la unidad fusionada. Es idempotente.
+const FUSIONES = { '09-O': '08-O', '12-O': '11-O' };
+const RANGO_ESTADO = { bloqueado: 1, reservado: 2, promesa: 3 };
+function migrarFusiones(db) {
+  let cambio = false;
+  for (const [k, v] of Object.entries(db.blocked || {})) {
+    const m = k.match(/^(\d)-(09|12)-O$/); if (!m) continue;
+    const destino = `${m[1]}-${FUSIONES[m[2] + '-O']}`;
+    const d = db.blocked[destino];
+    const etiqueta = `${FUSIONES[m[2] + '-O']} + ${m[2]}-O`;
+    if (!d) {
+      db.blocked[destino] = Object.assign({}, v, { unidad: Object.assign({}, v.unidad || {}, { label: FUSIONES[m[2] + '-O'], tipologia: '3D+2B' }), nota: [v.nota, `Fusión ${etiqueta}`].filter(Boolean).join(' · ') });
+    } else {
+      const mejor = (RANGO_ESTADO[v.estado] || 1) > (RANGO_ESTADO[d.estado] || 1) ? v : d;
+      d.fecha = [d.fecha, v.fecha].filter(Boolean).sort()[0] || d.fecha;
+      d.estado = mejor.estado || 'bloqueado';
+      d.estadoFecha = [d.estadoFecha, v.estadoFecha].filter(Boolean).sort().pop() || d.estadoFecha;
+      d.estadoPor = mejor.estadoPor || d.estadoPor;
+      if (!(d.cliente && d.cliente.nombre) && v.cliente && v.cliente.nombre) d.cliente = v.cliente;
+      if (v.precioCierre > 0 || d.precioCierre > 0) d.precioCierre = Math.round(((d.precioCierre || 0) + (v.precioCierre || 0)) * 100) / 100;
+      d.nEst = (d.nEst || 0) + (v.nEst || 0); d.nBod = (d.nBod || 0) + (v.nBod || 0);
+      d.nota = [...new Set([d.nota, v.nota, `Fusión ${etiqueta}`].filter(Boolean))].join(' · ');
+      d.historial = (d.historial || []).concat(v.historial || []).sort((a, b) => String(a.fecha).localeCompare(String(b.fecha))).slice(-50);
+      d.unidad = Object.assign({}, d.unidad || {}, { label: FUSIONES[m[2] + '-O'], tipologia: '3D+2B' });
+      d.actualizada = nowIso();
+    }
+    delete db.blocked[k]; cambio = true;
+    console.log(`Fusión: venta ${k} unida en ${destino}`);
+  }
+  for (const [k, p] of Object.entries(db.precios || {})) {
+    const m = k.match(/^(\d)-(09|12)-O$/); if (!m) continue;
+    const destino = `${m[1]}-${FUSIONES[m[2] + '-O']}`;
+    const d = db.precios[destino];
+    if (d && !d.fusionado) { db.precios[destino] = { lista: d.lista + p.lista, desc: d.desc + p.desc, fusionado: true }; }
+    else if (!d) { console.warn(`Fusión: precio cargado de ${k} sin pareja ${destino}; se descarta y rige la lista base`); }
+    delete db.precios[k]; cambio = true;
+  }
+  return cambio;
 }
 function saveDb(db) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
