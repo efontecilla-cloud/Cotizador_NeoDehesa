@@ -78,7 +78,7 @@ Todas las rutas (salvo login, `/api/me` y `/healthz`) exigen sesión; sin ella r
 | GET | `/api/me` | Usuario de la sesión actual. |
 | GET | `/api/state` | Usuario, bloqueos, clientes y resumen de cotizaciones. |
 | GET | `/api/admin/usuarios` | (admin) Usuarios, estado en línea, última actividad y últimos ingresos. |
-| POST | `/api/precios/xlsx` | (admin) Genera el Excel de la lista de precios con estado de venta y comprador (las filas las arma la página). |
+| POST | `/api/precios/xlsx` | Genera el Excel de la lista de precios con estado de venta y comprador (las filas las arma la página). Disponible para todos los usuarios; en Cotizar hay un botón "Descargar precios (Excel)". |
 | POST | `/api/precios/parse` | (admin) Lee un Excel subido (base64) y devuelve sus filas. |
 | POST / DELETE | `/api/precios` | (admin) Guarda la lista de precios cargada (`{ precios: { "6-01-O": { lista, desc } } }`) o vuelve a la lista original. |
 | POST | `/api/bloqueos` | `{ key, blocked, estado, cliente, nota }` registra o actualiza una venta (`blocked: false` la libera). |

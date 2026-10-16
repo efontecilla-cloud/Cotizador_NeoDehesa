@@ -297,6 +297,7 @@
         <button id="v3-pl" onclick="setView3D(-8, 84, this)">Planta</button>
       </div>
       <div class="grp">Separar pisos <input type="range" min="0" max="1.6" step="0.05" value="0" oninput="V3.explode=parseFloat(this.value); render3D()"></div>
+      <div class="grp" style="margin-left:auto;"><button class="btn-primary btn-sm" onclick="descargarPrecios()" title="Excel con todos los departamentos: precio de lista, precio con descuento, estado de venta y comprador">Descargar precios (Excel)</button></div>
     </div>
     <div class="v3d-wrap"><svg id="v3d-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg></div>
     <div class="legend"><span><i style="background:#60a5fa"></i>1D+1B</span><span><i style="background:#34d399"></i>2D+2BA</span><span><i style="background:#fb923c"></i>2D+2BB</span><span><i style="background:#a78bfa"></i>3D+2B (punta oriente)</span><span><i style="background:#1f2937"></i>Vendido</span><span><i style="background:#475569"></i>Core / escaleras</span><span><i style="background:#bbf7d0"></i>Jardín (1°)</span><span><i style="background:#fde68a"></i>Azotea (6°)</span><span><i style="border:2px solid #c9a24a; background:white;"></i>Unidad seleccionada</span></div>

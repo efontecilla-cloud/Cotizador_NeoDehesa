@@ -221,7 +221,7 @@ app.get('/api/admin/usuarios', requireAdmin, (req, res) => {
 // ---------- lista de precios (solo admin) ----------
 // La lista base viene en public/index.html. El administrador puede cargar un Excel con nuevos precios (lista y
 // descuento) que se guardan en db.precios y se aplican al cotizar. Las ventas y las cotizaciones emitidas no cambian.
-app.post('/api/precios/xlsx', requireAdmin, (req, res) => {
+app.post('/api/precios/xlsx', (req, res) => {                 // disponible para todos los usuarios con sesión (vendedora incluida)
   const rows = (req.body && req.body.rows) || [];
   if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'sin filas' });
   sendXlsx(res, rows, 'Precios', 'Lista de precios Via Trapenses');
