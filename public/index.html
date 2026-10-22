@@ -321,6 +321,8 @@
     <div class="row"><label>Validez (días)</label><input type="number" class="short" id="validez" value="7" min="1" oninput="render()"></div>
 
     <label class="switch"><input type="checkbox" id="aplica-desc" checked onchange="render(); render3D()"><div><b>Aplicar descuento</b><div class="s">Si está desactivado, la cotización se emite a precio de lista y no menciona el descuento.</div></div></label>
+    <div class="row"><label>Precio especial (UF)</label><input type="number" class="num" id="precio-esp" step="1" min="0" placeholder="opcional" oninput="render()"></div>
+    <div class="hint">Precio pactado para el departamento: reemplaza al precio con descuento y la cotización muestra el descuento resultante. Úsalo para cotizar al precio de venta acordado. Déjalo vacío para el precio normal.</div>
 
     <h2>2 · Adicionales</h2>
     <div class="row"><label>Estacionamiento</label><input type="number" class="short" id="n-est" value="0" min="0" max="4" oninput="render()"><span class="hint" style="margin:0">× UF <span id="p-est-lbl">450</span></span></div>
@@ -763,7 +765,22 @@ function renderVentaBox() {
     <div class="vb-cot">${q
       ? `Cotización ${q.otroCliente ? 'de la unidad (otro cliente)' : 'de la venta'}: <b>${esc(q.numero)}</b> · ${fmtDT(q.creada).slice(0, 10)}${tot != null ? ` · total <b>UF ${fmt0(tot)}</b>` : ''}${q.cliente && q.cliente.nombre ? ' · ' + esc(q.cliente.nombre) : ''} <button class="btn-secondary btn-sm" onclick="verCotizacion('${q.id}')">Ver / reimprimir</button>`
       : 'Esta venta no tiene una cotización registrada.'}</div>
-    <div class="acts"><button class="btn-dark btn-sm" onclick="editarVenta('${uKey(u)}')">Estado / cliente / precio</button><button class="btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="liberar('${uKey(u)}')">Liberar (volver a disponible)</button><button class="btn-secondary btn-sm" onclick="showView('vendidos')">Ir a Ventas</button></div>`;
+    <div class="acts"><button class="btn-primary btn-sm" onclick="cotizarVenta('${uKey(u)}')" ${v.precioCierre > 0 ? '' : 'title="La venta no tiene precio de venta definido; se usará el precio con descuento"'}>Cotizar al precio de venta</button><button class="btn-dark btn-sm" onclick="editarVenta('${uKey(u)}')">Estado / cliente / precio</button><button class="btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="liberar('${uKey(u)}')">Liberar (volver a disponible)</button><button class="btn-secondary btn-sm" onclick="showView('vendidos')">Ir a Ventas</button></div>`;
+}
+// Prepara una cotización nueva para el comprador de la unidad vendida, al precio de venta acordado y con sus adicionales.
+function cotizarVenta(k) {
+  const u = unitByKey[k], v = STATE.blocked[k]; if (!u || !v) return;
+  selectUnit(k, true);
+  viewingId = null; docNumberStr = null; document.getElementById('viewing').style.display = 'none';
+  const cl = v.cliente || {};
+  document.getElementById('cliente-sel').value = (cl.id && STATE.clientes.some(x => x.id === cl.id)) ? cl.id : '';
+  document.getElementById('cliente').value = cl.nombre || ''; document.getElementById('rut').value = cl.rut || ''; document.getElementById('contacto').value = cl.contacto || '';
+  document.getElementById('precio-esp').value = v.precioCierre > 0 ? v.precioCierre : '';
+  document.getElementById('n-est').value = v.nEst || 0; document.getElementById('n-bod').value = v.nBod || 0;
+  document.getElementById('fecha').value = todayIso();
+  render();
+  toast(v.precioCierre > 0 ? `Cotización preparada al precio de venta UF ${fmt0(v.precioCierre)} para ${cl.nombre || 'el comprador'}. Revisa y pulsa "Emitir PDF".` : 'La venta no tiene precio de venta definido: se usa el precio con descuento.');
+  document.getElementById('precio-esp').scrollIntoView({ block: 'center', behavior: 'smooth' });
 }
 function updateSelbox() {
   const sb = document.getElementById('selbox');
@@ -952,6 +969,7 @@ async function verCotizacion(id) {
     document.getElementById('cliente-sel').value = (c.cliente && c.cliente.id) || '';
     document.getElementById('fecha').value = c.fecha || ''; document.getElementById('uf').value = c.uf || ''; document.getElementById('validez').value = c.validez || 7;
     document.getElementById('aplica-desc').checked = !!c.aplica; document.getElementById('n-est').value = c.nEst || 0; document.getElementById('n-bod').value = c.nBod || 0;
+    document.getElementById('precio-esp').value = c.precioEspecial > 0 ? c.precioEspecial : '';
     const p = c.pay || {}; document.getElementById('pay-pie1').value = p.pie1 ?? 10; document.getElementById('pay-pie2').value = p.pie2 ?? 10; document.getElementById('pay-cuotas').value = p.cuotas ?? 18; document.getElementById('pay-credito').value = p.credito ?? 80;
     const v = c.vendedor || {}; document.getElementById('v-nombre').value = v.nombre || ''; document.getElementById('v-fono').value = v.fono || ''; document.getElementById('v-email').value = v.email || '';
     viewingId = c.id; docNumberStr = c.numero;
@@ -1180,15 +1198,18 @@ function hideTip3D() { const el = document.getElementById('v3d-tip'); if (el) el
 function calc() {
   if (!selected) return null;
   const u = selected;
-  const aplica = document.getElementById('aplica-desc').checked;
+  // Precio especial (pactado): reemplaza al precio con descuento del departamento; el descuento mostrado pasa a ser lista − especial.
+  const espV = parseFloat(document.getElementById('precio-esp').value);
+  const especial = espV > 0 ? Math.round(espV * 100) / 100 : null;
+  const aplica = document.getElementById('aplica-desc').checked || !!especial;
   const nEst = Math.max(0, parseInt(document.getElementById('n-est').value || '0', 10));
   const nBod = Math.max(0, parseInt(document.getElementById('n-bod').value || '0', 10));
   const ufv = parseFloat(document.getElementById('uf').value);
   const lista = u.lista, desc = u.desc;
-  const dUF = aplica ? (lista - desc) : 0;
+  const deptoTotal = especial ? especial : (aplica ? desc : lista);
+  const dUF = especial ? (lista - especial) : (aplica ? (lista - desc) : 0);
   const dPct = aplica && lista > 0 ? dUF / lista : 0;
-  const deptoTotal = aplica ? desc : lista;
-  const items = [{ label: `Departamento ${uLabel(u)} · ${u.tipologia}`, cant: 1, lista, dUF, dPct, total: deptoTotal }];
+  const items = [{ label: `Departamento ${uLabel(u)} · ${u.tipologia}${especial ? ' · precio especial' : ''}`, cant: 1, lista, dUF, dPct, total: deptoTotal }];
   if (nEst) items.push({ label: EXTRAS.est.label + (nEst > 1 ? ` (${nEst})` : ''), cant: nEst, lista: EXTRAS.est.uf * nEst, dUF: 0, dPct: 0, total: EXTRAS.est.uf * nEst });
   if (nBod) items.push({ label: EXTRAS.bod.label + (nBod > 1 ? ` (${nBod})` : ''), cant: nBod, lista: EXTRAS.bod.uf * nBod, dUF: 0, dPct: 0, total: EXTRAS.bod.uf * nBod });
   const totLista = items.reduce((s, i) => s + i.lista, 0);
@@ -1198,7 +1219,7 @@ function calc() {
   const cuotas = Math.max(1, parseInt(document.getElementById('pay-cuotas').value || '18', 10));
   const pay = [{ k: 'pie1', pct: pct('pay-pie1') }, { k: 'pie2', pct: pct('pay-pie2'), cuotas }, { k: 'credito', pct: pct('pay-credito') }];
   const paySum = pay.reduce((s, p) => s + p.pct, 0);
-  return { u, aplica, nEst, nBod, ufv: isNaN(ufv) || ufv <= 0 ? null : ufv, items, totLista, totDesc, total, pay, paySum, cuotas };
+  return { u, aplica, especial, nEst, nBod, ufv: isNaN(ufv) || ufv <= 0 ? null : ufv, items, totLista, totDesc, total, pay, paySum, cuotas };
 }
 
 // ===== N° DE COTIZACIÓN (local, solo si el servidor no responde) =====
@@ -1268,7 +1289,7 @@ function render() {
   const highlight = c.aplica
     ? `<div class="highlight"><div class="hl"><div class="k">Precio de lista</div><div class="v">UF ${fmt2(c.totLista)}</div><div class="s">${clp(c.totLista)}</div></div>
        <div class="hl"><div class="k">Descuento</div><div class="v" style="color:#b91c1c;">− UF ${fmt2(c.totDesc)}</div><div class="s">${clp(c.totDesc)}</div></div>
-       <div class="hl main"><div class="k">Precio con descuento</div><div class="v">UF ${fmt2(c.total)}</div><div class="s">${clp(c.total)}</div></div></div>`
+       <div class="hl main"><div class="k">${c.especial ? 'Precio especial' : 'Precio con descuento'}</div><div class="v">UF ${fmt2(c.total)}</div><div class="s">${clp(c.total)}</div></div></div>`
     : `<div class="highlight"><div class="hl main"><div class="k">Precio de lista</div><div class="v">UF ${fmt2(c.total)}</div><div class="s">${clp(c.total)}</div></div></div>`;
 
   const chars = `<div class="chars">
@@ -1339,7 +1360,7 @@ function collectPayload(c) {
     fecha: document.getElementById('fecha').value || todayIso(),
     unidad: { key: uKey(u), label: uLabel(u), piso: u.piso, tipologia: u.tipologia, orientacion: u.orientacion, ficha: u.ficha },
     cliente: { id: clId, nombre: document.getElementById('cliente').value.trim(), rut: document.getElementById('rut').value.trim(), contacto: document.getElementById('contacto').value.trim() },
-    uf: c.ufv, validez: parseInt(document.getElementById('validez').value || '7', 10), aplica: c.aplica, nEst: c.nEst, nBod: c.nBod,
+    uf: c.ufv, validez: parseInt(document.getElementById('validez').value || '7', 10), aplica: c.aplica, precioEspecial: c.especial, nEst: c.nEst, nBod: c.nBod,
     pay: { pie1: c.pay[0].pct, pie2: c.pay[1].pct, cuotas: c.cuotas, credito: c.pay[2].pct },
     vendedor: { nombre: document.getElementById('v-nombre').value.trim(), fono: document.getElementById('v-fono').value.trim(), email: document.getElementById('v-email').value.trim() },
     totales: { lista: c.totLista, descuento: c.totDesc, total: c.total, deptoLista: u.lista, deptoDesc: u.desc }
@@ -1351,13 +1372,20 @@ async function emitir() {
   const problems = [];
   if (!c) problems.push('Selecciona una unidad en el edificio.');
   else {
-    if (isSold(c.u)) problems.push('El departamento está marcado como vendido.');
+    if (c.especial && c.especial > c.u.lista) problems.push(`El precio especial (UF ${fmt0(c.especial)}) no puede superar el precio de lista (UF ${fmt0(c.u.lista)}).`);
     if (Math.abs(c.paySum - 100) > 0.01) problems.push('La forma de pago debe sumar 100%.');
     if (!document.getElementById('cliente').value.trim()) problems.push('Ingresa el nombre del cliente.');
   }
   if (problems.length) { w.textContent = problems.join(' '); w.style.display = 'block'; return; }
   w.style.display = 'none';
   const payload = collectPayload(c);
+  // Departamento vendido: solo tiene sentido una cotización nueva para su comprador (p. ej. al precio de venta pactado).
+  if (isSold(c.u)) {
+    const v = STATE.blocked[uKey(c.u)] || {};
+    const quien = v.cliente && v.cliente.nombre ? ` a ${v.cliente.nombre}` : '';
+    if (!window.confirm(`El departamento ${uLabel(c.u)} (piso ${c.u.piso}°) está vendido${quien}. ¿Emitir igual esta cotización? Hazlo solo para el comprador de la unidad (por ejemplo, con el precio de venta acordado).`)) return;
+    payload.permitirVendido = true;
+  }
   try {
     const r = await api('POST', '/api/cotizaciones', payload);
     docNumberStr = r.numero; viewingId = r.id;
@@ -1378,6 +1406,7 @@ function limpiar() {
   document.getElementById('cliente-sel').value = ''; document.getElementById('cliente-status').textContent = '';
   document.getElementById('n-est').value = 0; document.getElementById('n-bod').value = 0;
   document.getElementById('aplica-desc').checked = true;
+  document.getElementById('precio-esp').value = '';
   document.getElementById('pay-pie1').value = 10; document.getElementById('pay-pie2').value = 10; document.getElementById('pay-cuotas').value = 18; document.getElementById('pay-credito').value = 80;
   document.getElementById('fecha').value = todayIso();
   document.getElementById('validez').value = 7;

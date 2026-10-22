@@ -12,6 +12,7 @@ Cotizador online para la sala de ventas del proyecto Vía Trapenses (Vitalia Inm
 - Departamentos vendidos: se marcan en negro y no admiten nuevas cotizaciones.
 - Clientes guardados y exportables a Excel.
 - Registro de todas las cotizaciones emitidas, con exportación a Excel y reimpresión.
+- Precio especial: campo opcional en el formulario de cotización que reemplaza al precio con descuento del departamento (la cotización muestra el descuento resultante). Al seleccionar un departamento vendido, el botón "Cotizar al precio de venta" prepara una cotización para su comprador con el precio de venta y los adicionales de la venta; emitirla para un vendido pide confirmación.
 - Ventas: cada departamento vendido tiene un estado comercial (**Bloqueado**, **Reservado**, **Promesa**) que se puede cambiar, un cliente asociado (de la lista guardada o nuevo) y una nota. Filtro por estado y exportación a Excel.
 - **Administración** (solo admin): usuarios y su actividad (en línea / última actividad / últimos ingresos), e **informe de ventas** con cotizaciones y clientes nuevos por semana (lunes a domingo), avance de ventas, vendidos por tipología, mapa 3D de disponibilidad (blanco = disponible, negro = vendido), tablas de resumen y exportación a PDF.
 

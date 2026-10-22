@@ -355,7 +355,7 @@ app.post('/api/cotizaciones', requirePin, (req, res) => {
   const p = req.body || {};
   if (!p.unidad || !p.unidad.key) return res.status(400).json({ error: 'unidad requerida' });
   const db = loadDb();
-  if (db.blocked[p.unidad.key]) return res.status(409).json({ error: 'La unidad está marcada como vendida' });
+  if (db.blocked[p.unidad.key] && !p.permitirVendido) return res.status(409).json({ error: 'La unidad está marcada como vendida' });   // la página pide confirmación antes de enviar permitirVendido
   db.seq += 1;
   const ymd = String(p.fecha || nowIso().slice(0, 10)).replace(/-/g, '');
   const numero = `VT-${ymd}-${String(db.seq).padStart(4, '0')}`;
@@ -379,7 +379,7 @@ app.get('/api/cotizaciones.xlsx', (req, res) => {
     'N°': c.numero, 'Fecha': c.fecha, 'Emitida': fmtDate(c.creada),
     'Unidad': c.unidad && c.unidad.label, 'Piso': c.unidad && c.unidad.piso, 'Tipología': c.unidad && c.unidad.tipologia, 'Orientación': c.unidad && c.unidad.orientacion,
     'Cliente': c.cliente && c.cliente.nombre, 'RUT': c.cliente && c.cliente.rut, 'Contacto': c.cliente && c.cliente.contacto,
-    'Con descuento': c.aplica ? 'Sí' : 'No',
+    'Con descuento': c.aplica ? 'Sí' : 'No', 'Precio especial UF': c.precioEspecial > 0 ? c.precioEspecial : '',
     'Precio lista UF': c.totales && c.totales.lista, 'Descuento UF': c.totales && c.totales.descuento, 'Total UF': c.totales && c.totales.total,
     'Valor UF': c.uf || '', 'Total $': (c.uf && c.totales) ? Math.round(c.totales.total * c.uf) : '',
     'Estacionamientos': c.nEst || 0, 'Bodegas': c.nBod || 0,
