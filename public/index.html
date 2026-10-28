@@ -443,7 +443,6 @@
     <div class="card" id="rep-card">
       <div class="bar no-print-report">
         <h2 style="margin:0; flex:1;">Informe de ventas</h2>
-        <label class="hint" style="margin:0">Semanas: <select id="rep-weeks" onchange="renderInforme()" style="padding:4px 6px; border:1px solid #cbd5e1; border-radius:5px;"><option value="8">8</option><option value="12" selected>12</option><option value="26">26</option></select></label>
         <button class="btn-primary btn-sm" onclick="exportarInforme()">Exportar a PDF</button>
       </div>
       <div id="rep"></div>
@@ -1675,22 +1674,10 @@ function chartTip(ev, txt) {
 function renderInforme() {
   const el = document.getElementById('rep');
   if (!el || !isAdmin()) return;
-  const nW = parseInt(document.getElementById('rep-weeks').value, 10) || 12;
-  const weeks = lastWeeks(nW);
-  const labels = weeks.map(w => ddmm(w));
-  const cotW = countByWeek(STATE.cotizaciones, fechaEmision, weeks);   // por fecha de emisión de la cotización
-  const cliW = countByWeek(STATE.clientes, 'creado', weeks);
-  const thisW = weeks.length - 1, prevW = weeks.length - 2;
   const soldKeys = Object.keys(STATE.blocked);
   const soldUnits = soldKeys.map(k => unitByKey[k]).filter(Boolean);
   const nSold = soldUnits.length, nFree = UNITS.length - nSold;
   const tipos = Object.keys(tipoColor);
-  const byTipo = tipos.map(t => { const tot = UNITS.filter(u => u.tipologia === t).length, v = soldUnits.filter(u => u.tipologia === t).length; return { label: t, a: v, b: tot - v }; });
-  const soldSorted = soldKeys.map(k => ({ k, u: unitByKey[k], b: STATE.blocked[k] })).sort((x, y) => (y.b.fecha || '').localeCompare(x.b.fecha || ''));
-  const desde = weeks[0].getTime();
-  const nuevos = STATE.clientes.filter(c => c.creado && new Date(c.creado).getTime() >= desde).sort((a, b) => (b.creado || '').localeCompare(a.creado || ''));
-  const MAX_NUEVOS = 60;
-  const nCotCli = {}; STATE.cotizaciones.forEach(c => { const k = c.cliente && c.cliente.id; if (k) nCotCli[k] = (nCotCli[k] || 0) + 1; });
   // embudo comercial: los estados están ordenados, así que un cliente en el estado N "llegó" a todos los anteriores
   const EST_COLOR = { noresponde: '#cbd5e1', conversaciones: '#93c5fd', reserva: '#60a5fa', cartaoferta: '#2563eb', promesa: REP.navy };
   const ventas = soldKeys.map(k => { const e = ventaEstado(STATE.blocked[k]); return { k, u: unitByKey[k], v: STATE.blocked[k], e, rank: estadoRank(e) }; });
@@ -1702,32 +1689,33 @@ function renderInforme() {
   const porEstado = ESTADOS.map(([v, l, corto], i) => {
     const rank = i + 1, vs = ventas.filter(x => x.e === v);
     return { v, label: l, corto, rank, n: vs.length, nAcum: ventas.filter(x => x.rank >= rank).length, clientes: clientesArr.filter(c => c.rank === rank).length, clientesAcum: clientesArr.filter(c => c.rank >= rank).length,
-      uf: vs.reduce((s, x) => s + ((x.u && x.u.lista) || 0), 0), semana: vs.filter(x => (x.v.estadoFecha || x.v.fecha) && new Date(x.v.estadoFecha || x.v.fecha).getTime() >= weeks[thisW].getTime()).length };
+      uf: vs.reduce((s, x) => s + ((x.u && x.u.lista) || 0), 0), ufVenta: vs.reduce((s, x) => s + (x.v.precioCierre || 0), 0) };
   });
   const estadoPorTipo = tipos.map(t => { const r = { label: t, total: 0 }; ESTADOS.forEach(([v]) => { r[v] = ventas.filter(x => x.u && x.u.tipologia === t && x.e === v).length; r.total += r[v]; }); return r; });
   const ventasOrden = [...ventas].sort((a, b) => b.rank - a.rank || ((b.v.estadoFecha || b.v.fecha) || '').localeCompare((a.v.estadoFecha || a.v.fecha) || ''));
-  const semana = `${ddmm(weeks[thisW])} al ${ddmm(new Date(weeks[thisW].getTime() + 6 * 864e5))}`;
-  const delta = (a, b) => b === undefined ? '' : a === b ? 'igual que la semana anterior' : a > b ? `+${a - b} vs. semana anterior` : `${a - b} vs. semana anterior`;
   const now = new Date();
   el.innerHTML = `
     <div class="rep-head">
       <div><img src="${LOGO}" alt="Vitalia Inmobiliaria"><div class="hint" style="margin:4px 0 0 0">${esc(PROYECTO.empresa)} · Proyecto ${esc(PROYECTO.nombre)}</div></div>
-      <div><h1>INFORME DE VENTAS</h1><div class="meta">Semana en curso: <b>${semana}</b> (lunes a domingo)<br>Generado el ${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())} por ${esc(STATE.user.nombre || STATE.user.usuario)}</div></div>
+      <div><h1>INFORME DE VENTAS</h1><div class="meta">Ventas por estado comercial<br>Generado el ${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())} por ${esc(STATE.user.nombre || STATE.user.usuario)}</div></div>
     </div>
-    <div class="kpis">
-      <div class="kpi"><div class="k">Cotizaciones esta semana</div><div class="v">${cotW[thisW]}</div><div class="s">${delta(cotW[thisW], cotW[prevW])} · ${STATE.cotizaciones.length} en total</div></div>
-      <div class="kpi"><div class="k">Clientes nuevos esta semana</div><div class="v">${cliW[thisW]}</div><div class="s">${delta(cliW[thisW], cliW[prevW])} · ${STATE.clientes.length} registrados</div></div>
-      <div class="kpi"><div class="k">Clientes con promesa firmada</div><div class="v">${porEstado[4].clientesAcum}</div><div class="s">${porEstado[3].clientesAcum} con carta oferta · ${porEstado[2].clientesAcum} con reserva · ${clientesArr.length} en total</div></div>
+    <div class="kpis" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="kpi"><div class="k">Clientes con departamento</div><div class="v">${clientesArr.length}</div><div class="s">${nSold} unidades vendidas</div></div>
+      <div class="kpi"><div class="k">Clientes con promesa firmada</div><div class="v">${porEstado[4].clientesAcum}</div><div class="s">${porEstado[3].clientesAcum} llegaron a carta oferta · ${porEstado[2].clientesAcum} a pago reserva</div></div>
       <div class="kpi"><div class="k">Departamentos disponibles</div><div class="v">${nFree}</div><div class="s">de ${UNITS.length} unidades</div></div>
-      <div class="kpi"><div class="k">Vendidos (bloqueados)</div><div class="v">${nSold}</div><div class="s">${Math.round(nSold / UNITS.length * 100)}% del edificio</div></div>
+      <div class="kpi"><div class="k">Vendidos (bloqueados)</div><div class="v">${nSold}</div><div class="s">${Math.round(nSold / UNITS.length * 100)}% del edificio · UF ${fmt0(porEstado.reduce((s, r) => s + r.ufVenta, 0))} en precios de venta</div></div>
     </div>
     <div class="rep-grid">
-      <div class="fig"><h4>Cotizaciones y clientes nuevos por semana</h4><div class="sub">Últimas ${nW} semanas, de lunes a domingo, según la fecha de emisión de la cotización y la fecha de registro del cliente. La semana en curso es la última barra.</div>
-        ${barChart(labels, [{ name: 'Cotizaciones', color: REP.navy, values: cotW }, { name: 'Clientes nuevos', color: REP.gold, values: cliW }], { aria: 'Cotizaciones y clientes nuevos por semana' })}</div>
-      <div class="fig"><h4>Avance de ventas</h4><div class="sub">Unidades vendidas (bloqueadas por la sala de ventas) sobre el total del edificio.</div>
-        ${donut(nSold, nFree, 'Vendidos', 'Disponibles')}
-        <h4 style="margin-top:10px;">Vendidos por tipología</h4>
-        ${hStackChart(byTipo, { nameA: 'Vendidos', nameB: 'Disponibles', colorA: REP.sold, colorB: REP.free, aria: 'Vendidos y disponibles por tipología' })}</div>
+      <div class="fig"><h4>Clientes que han llegado a cada estado</h4><div class="sub">Embudo comercial de ${clientesArr.length} clientes con departamento asignado. Los estados van en orden: quien está en "Carta oferta firmada" también pagó la reserva y tuvo conversaciones, por eso cada barra incluye a los clientes de los estados siguientes.</div>
+        ${hBarChart(porEstado.map(r => ({ label: `${r.rank} · ${r.corto}`, v: r.clientesAcum, color: EST_COLOR[r.v], sub: `${r.clientes} exactamente en este estado · ${r.n} unidad${r.n === 1 ? '' : 'es'}` })), { aria: 'Clientes que han llegado a cada estado', padL: 96 })}
+        <table class="tbl" style="margin-top:8px;"><tr><th>Estado</th><th class="r">Clientes que llegaron</th><th class="r">En este estado hoy</th><th class="r">Unidades</th><th class="r">UF lista</th><th class="r">UF venta</th></tr>
+        ${porEstado.map(r => `<tr><td>${estadoBadge(r.v)}</td><td class="r"><b>${r.clientesAcum}</b></td><td class="r">${r.clientes}</td><td class="r">${r.n}</td><td class="r">${fmt0(r.uf)}</td><td class="r">${r.ufVenta ? fmt0(r.ufVenta) : '—'}</td></tr>`).join('')}
+        <tr style="font-weight:700;"><td>Total</td><td class="r">${clientesArr.length}</td><td class="r">${clientesArr.length}</td><td class="r">${nSold}</td><td class="r">${fmt0(porEstado.reduce((s, r) => s + r.uf, 0))}</td><td class="r">${fmt0(porEstado.reduce((s, r) => s + r.ufVenta, 0))}</td></tr></table></div>
+      <div class="fig"><h4>Estado por tipología</h4><div class="sub">Cuántas unidades de cada tipología están hoy en cada estado (1 = No responde … 5 = Firma promesa).</div>
+        <table class="tbl"><tr><th>Tipología</th>${ESTADOS.map(([v, l, c], i) => `<th class="r" title="${esc(l)}">${i + 1} · ${esc(c)}</th>`).join('')}<th class="r">Total</th><th class="r">Dispon.</th></tr>
+        ${estadoPorTipo.map(r => { const all = UNITS.filter(u => u.tipologia === r.label).length; return `<tr><td><b>${esc(r.label)}</b></td>${ESTADOS.map(([v]) => `<td class="r">${r[v] || ''}</td>`).join('')}<td class="r"><b>${r.total}</b></td><td class="r">${all - r.total}</td></tr>`; }).join('')}
+        <tr style="font-weight:700;"><td>Total</td>${porEstado.map(r => `<td class="r">${r.n}</td>`).join('')}<td class="r">${nSold}</td><td class="r">${nFree}</td></tr></table>
+        <div class="legend" style="margin-top:8px;">${ESTADOS.map(([v, l], i) => `<span><i style="background:${EST_COLOR[v]}"></i>${i + 1} · ${esc(l)}</span>`).join('')}</div></div>
     </div>
     <div class="fig" style="margin-bottom:16px;"><h4>Mapa del edificio</h4><div class="sub">Blanco = disponible · Negro = vendido (bloqueado). Vista frontal desde la Av. José Alcalde Délano (sur) y vista posterior desde el norte.</div>
       <div class="rep-maps">
@@ -1735,35 +1723,14 @@ function renderInforme() {
         <div><div class="map-title">Por detrás · fachada norte (vista Manquehue)</div><div class="rep-3d"><svg id="rep-3d-svg-back" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg></div></div>
       </div>
       <div class="legend"><span><i style="background:#ffffff"></i>Disponible</span><span><i style="background:#111827"></i>Vendido</span><span><i style="background:#475569"></i>Core / escaleras</span><span><i style="background:#b6c2d1"></i>Circulación</span></div></div>
-    <div class="rep-grid">
-      <div class="fig"><h4>Clientes que han llegado a cada estado</h4><div class="sub">Embudo comercial de ${clientesArr.length} clientes con departamento asignado. Los estados van en orden: quien está en "Carta oferta firmada" también pagó la reserva y tuvo conversaciones, por eso cada barra incluye a los clientes de los estados siguientes.</div>
-        ${hBarChart(porEstado.map(r => ({ label: `${r.rank} · ${r.corto}`, v: r.clientesAcum, color: EST_COLOR[r.v], sub: `${r.clientes} exactamente en este estado · ${r.n} unidad${r.n === 1 ? '' : 'es'}` })), { aria: 'Clientes que han llegado a cada estado', padL: 96 })}
-        <table class="tbl" style="margin-top:8px;"><tr><th>Estado</th><th class="r">Clientes que llegaron</th><th class="r">En este estado hoy</th><th class="r">Unidades</th><th class="r">Cambios esta semana</th></tr>
-        ${porEstado.map(r => `<tr><td>${estadoBadge(r.v)}</td><td class="r"><b>${r.clientesAcum}</b></td><td class="r">${r.clientes}</td><td class="r">${r.n}</td><td class="r">${r.semana}</td></tr>`).join('')}
-        <tr style="font-weight:700;"><td>Total</td><td class="r">${clientesArr.length}</td><td class="r">${clientesArr.length}</td><td class="r">${nSold}</td><td class="r">${porEstado.reduce((s, r) => s + r.semana, 0)}</td></tr></table></div>
-      <div class="fig"><h4>Estado por tipología</h4><div class="sub">Cuántas unidades de cada tipología están hoy en cada estado (1 = No responde … 5 = Firma promesa).</div>
-        <table class="tbl"><tr><th>Tipología</th>${ESTADOS.map(([v, l, c], i) => `<th class="r" title="${esc(l)}">${i + 1} · ${esc(c)}</th>`).join('')}<th class="r">Total</th><th class="r">Dispon.</th></tr>
-        ${estadoPorTipo.map(r => { const all = UNITS.filter(u => u.tipologia === r.label).length; return `<tr><td><b>${esc(r.label)}</b></td>${ESTADOS.map(([v]) => `<td class="r">${r[v] || ''}</td>`).join('')}<td class="r"><b>${r.total}</b></td><td class="r">${all - r.total}</td></tr>`; }).join('')}
-        <tr style="font-weight:700;"><td>Total</td>${porEstado.map(r => `<td class="r">${r.n}</td>`).join('')}<td class="r">${nSold}</td><td class="r">${nFree}</td></tr></table>
-        <div class="legend" style="margin-top:8px;">${ESTADOS.map(([v, l], i) => `<span><i style="background:${EST_COLOR[v]}"></i>${i + 1} · ${esc(l)}</span>`).join('')}</div></div>
-    </div>
-    <div class="fig" style="margin-bottom:16px;"><h4>Nuevos clientes</h4><div class="sub">Clientes registrados en las últimas ${nW} semanas, del más reciente al más antiguo${nuevos.length > MAX_NUEVOS ? ` (se muestran ${MAX_NUEVOS} de ${nuevos.length})` : ''}.</div>
-      <table class="tbl"><tr><th>Fecha</th><th>Cliente</th><th>RUT</th><th>Contacto</th><th class="r">Cotizaciones</th><th>Registrado por</th></tr>
-      ${nuevos.length ? nuevos.slice(0, MAX_NUEVOS).map(c => `<tr><td>${fmtDT(c.creado).slice(0, 10)}</td><td><b>${esc(c.nombre)}</b></td><td>${esc(c.rut) || '—'}</td><td>${esc(c.contacto) || '—'}</td><td class="r">${nCotCli[c.id] || 0}</td><td>${esc(c.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="6" class="hint">No hay clientes nuevos en el período.</td></tr>'}</table></div>
-    <div class="rep-grid one">
-      <div class="fig"><h4>Resumen por tipología</h4><div class="sub">Unidades vendidas y disponibles según tipología.</div>
-        <table class="tbl"><tr><th>Tipología</th><th class="r">Total</th><th class="r">Vendidos</th><th class="r">Disponibles</th><th class="r">% vendido</th></tr>
-        ${byTipo.map(r => `<tr><td><b>${esc(r.label)}</b></td><td class="r">${r.a + r.b}</td><td class="r">${r.a}</td><td class="r">${r.b}</td><td class="r">${r.a + r.b ? Math.round(r.a / (r.a + r.b) * 100) : 0}%</td></tr>`).join('')}
-        <tr style="font-weight:700;"><td>Total</td><td class="r">${UNITS.length}</td><td class="r">${nSold}</td><td class="r">${nFree}</td><td class="r">${Math.round(nSold / UNITS.length * 100)}%</td></tr></table></div>
-    </div>
-    <div class="fig" style="margin-bottom:16px;"><h4>Detalle por estado</h4><div class="sub">Clientes y unidades en cada estado, del 1 al 5, con el cambio más reciente primero.</div>
+    <div class="fig" style="margin-bottom:16px;"><h4>Detalle de ventas por estado</h4><div class="sub">Clientes y unidades en cada estado, del 1 al 5, con el cambio más reciente primero.</div>
       ${porEstado.map(r => { const vs = ventasOrden.filter(x => x.e === r.v); return `<div class="est-sec"><h5>${estadoBadge(r.v)} <span>${r.clientes} cliente${r.clientes === 1 ? '' : 's'} · ${r.n} unidad${r.n === 1 ? '' : 'es'}${r.clientesAcum > r.clientes ? ` · ${r.clientesAcum} llegaron a este estado o más allá` : ''}</span></h5>`
         + (vs.length ? `<table class="tbl"><tr><th>Cliente</th><th>Contacto</th><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Desde</th><th class="r">Lista UF</th><th class="r">Venta UF</th><th class="r">Est.</th><th class="r">Bod.</th><th>Nota</th><th>Por</th></tr>`
           + vs.map(x => `<tr><td><b>${esc(x.v.cliente && x.v.cliente.nombre) || '—'}</b>${x.v.cliente && x.v.cliente.rut ? `<div class="hint" style="margin:0">${esc(x.v.cliente.rut)}</div>` : ''}</td><td>${esc(x.v.cliente && x.v.cliente.contacto) || '—'}</td><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${fmtDT(x.v.estadoFecha || x.v.fecha).slice(0, 10)}</td><td class="r">${x.u ? fmt0(x.u.lista) : ''}</td><td class="r">${x.v.precioCierre > 0 ? fmt0(x.v.precioCierre) : '—'}</td><td class="r">${x.v.nEst || 0}</td><td class="r">${x.v.nBod || 0}</td><td>${esc(ventaNota(x.v)) || '—'}</td><td>${esc(x.v.estadoPor || x.v.usuario || '')}</td></tr>`).join('')
           + `<tr style="font-weight:700;"><td colspan="6">Subtotal</td><td class="r">${fmt0(vs.reduce((s, x) => s + ((x.u && x.u.lista) || 0), 0))}</td><td class="r">${fmt0(vs.reduce((s, x) => s + (x.v.precioCierre || 0), 0))}</td><td class="r">${vs.reduce((s, x) => s + (x.v.nEst || 0), 0)}</td><td class="r">${vs.reduce((s, x) => s + (x.v.nBod || 0), 0)}</td><td colspan="2"></td></tr></table>`
           : '<div class="hint">Sin clientes en este estado.</div>') + '</div>'; }).join('')}
     </div>
-    <div class="rep-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Lista de precios ${priceDateLabel()} · ${STATE.cotizaciones.length} cotizaciones · ${STATE.clientes.length} clientes</span></div>`;
+    <div class="rep-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Lista de precios ${priceDateLabel()} · ${nSold} ventas · ${clientesArr.length} clientes</span></div>`;
   render3D({ report: true, svg: document.getElementById('rep-3d-svg'), cam: { yaw: -32, pitch: 32, explode: 0 } });        // por delante (sur-este)
   render3D({ report: true, svg: document.getElementById('rep-3d-svg-back'), cam: { yaw: 148, pitch: 32, explode: 0 } });   // por detrás (norte-oeste)
 }
