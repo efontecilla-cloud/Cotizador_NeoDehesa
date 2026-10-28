@@ -1709,18 +1709,17 @@ function renderInforme() {
   // La fecha del hito es la primera vez que la venta llegó a ese estado o a uno posterior (según el historial de cambios).
   const t24 = now.getTime() - 24 * 3600e3, t7 = now.getTime() - 7 * 86400e3;
   const HITOS = [
-    { label: 'Ventas registradas', desc: 'departamentos con venta registrada (cualquier estado)', fecha: x => x.v.fecha || null },
-    { label: 'Reservas pagadas', desc: 'estado 3 · Pago reserva, o posterior', fecha: x => fechaHito(x.v, 3) },
-    { label: 'Cartas oferta firmadas', desc: 'estado 4 · Carta oferta firmada, o posterior', fecha: x => fechaHito(x.v, 4) },
-    { label: 'Promesas firmadas', desc: 'estado 5 · Firma promesa', fecha: x => fechaHito(x.v, 5) }
+    { label: 'Ventas registradas', desc: 'departamentos con venta registrada (cualquier estado)', rank: 0, fecha: x => x.v.fecha || null },
+    { label: 'Reservas pagadas', desc: 'estado 3 · Pago reserva, o posterior', rank: 3, fecha: x => fechaHito(x.v, 3) },
+    { label: 'Cartas oferta firmadas', desc: 'estado 4 · Carta oferta firmada, o posterior', rank: 4, fecha: x => fechaHito(x.v, 4) },
+    { label: 'Promesas firmadas', desc: 'estado 5 · Firma promesa', rank: 5, fecha: x => fechaHito(x.v, 5) }
   ];
   const resumen = HITOS.map(h => {
-    const fechas = ventas.map(x => ({ x, f: h.fecha(x) })).filter(o => o.f);
-    const ms = o => new Date(o.f).getTime();
-    const en = (desde) => fechas.filter(o => ms(o) >= desde && ms(o) <= now.getTime());
-    const lista = arr => arr.sort((a, b) => ms(b) - ms(a)).map(o => `${o.x.u ? uLabel(o.x.u) + ' ' + o.x.u.piso + '°' : o.x.k}${o.x.v.cliente && o.x.v.cliente.nombre ? ' (' + esc(o.x.v.cliente.nombre) + ')' : ''}`).join(', ');
-    const h24 = en(t24), h7 = en(t7);
-    return { label: h.label, desc: h.desc, n24: h24.length, n7: h7.length, total: fechas.length, l24: lista(h24), l7: lista(h7) };
+    // acumulado: ventas que hoy están en ese estado o en uno posterior (igual que el embudo); 24 h y 7 días: por fecha en que alcanzaron el hito
+    const alcanzaron = ventas.filter(x => x.rank >= h.rank);
+    const fechas = alcanzaron.map(x => h.fecha(x) || x.v.estadoFecha || x.v.fecha).filter(Boolean).map(f => new Date(f).getTime());
+    const en = desde => fechas.filter(t => t >= desde && t <= now.getTime()).length;
+    return { label: h.label, desc: h.desc, rank: h.rank, n24: en(t24), n7: en(t7), total: alcanzaron.length };
   });
   el.innerHTML = `
     <div class="rep-head">
@@ -1729,7 +1728,7 @@ function renderInforme() {
     </div>
     <div class="fig" id="rep-resumen" style="margin-bottom:16px;"><h4>Resumen diario de gestión</h4><div class="sub">Cuántas ventas alcanzaron cada hito en las últimas 24 horas, en los últimos 7 días y en total. Corte: ${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())}. Una venta cuenta en un hito desde la primera vez que llegó a ese estado o a uno posterior.</div>
       <table class="tbl resumen"><tr><th>Hito</th><th class="r">Últimas 24 horas</th><th class="r">Últimos 7 días</th><th class="r">Acumulado histórico</th></tr>
-      ${resumen.map(r => `<tr><td><b>${r.label}</b><div class="hint" style="margin:0">${r.desc}</div></td><td class="r"><b class="big">${r.n24}</b>${r.l24 ? `<div class="hint det" style="margin:0">${r.l24}</div>` : ''}</td><td class="r"><b class="big">${r.n7}</b>${r.l7 ? `<div class="hint det" style="margin:0">${r.l7}</div>` : ''}</td><td class="r"><b class="big">${r.total}</b>${r.total ? `<div class="hint" style="margin:0">${Math.round(r.total / Math.max(1, nSold) * 100)}% de las ventas</div>` : ''}</td></tr>`).join('')}</table></div>
+      ${resumen.map(r => `<tr><td><b>${r.label}</b><div class="hint" style="margin:0">${r.desc}</div></td><td class="r"><b class="big">${r.n24}</b></td><td class="r"><b class="big">${r.n7}</b></td><td class="r"><b class="big">${r.total}</b>${r.total && r.rank ? `<div class="hint" style="margin:0">${Math.round(r.total / Math.max(1, nSold) * 100)}% de las ventas</div>` : ''}</td></tr>`).join('')}</table></div>
     <div class="kpis" style="grid-template-columns: repeat(4, 1fr);">
       <div class="kpi"><div class="k">Ventas registradas</div><div class="v">${nSold}</div><div class="s">${Math.round(nSold / UNITS.length * 100)}% del edificio · ${clientesArr.length} clientes</div></div>
       <div class="kpi"><div class="k">Ventas con promesa firmada</div><div class="v">${porEstado[4].nAcum}</div><div class="s">${porEstado[3].nAcum} llegaron a carta oferta · ${porEstado[2].nAcum} a pago reserva</div></div>
