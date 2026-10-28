@@ -13,8 +13,8 @@ Cotizador online para la sala de ventas del proyecto Vía Trapenses (Vitalia Inm
 - Clientes guardados y exportables a Excel.
 - Registro de todas las cotizaciones emitidas, con exportación a Excel y reimpresión.
 - Precio especial: campo opcional en el formulario de cotización que reemplaza al precio con descuento del departamento (la cotización muestra el descuento resultante). Al seleccionar un departamento vendido, el botón "Cotizar al precio de venta" prepara una cotización para su comprador con el precio de venta y los adicionales de la venta; emitirla para un vendido pide confirmación.
-- Ventas: cada departamento vendido tiene un estado comercial (**Bloqueado**, **Reservado**, **Promesa**) que se puede cambiar, un cliente asociado (de la lista guardada o nuevo) y una nota. Filtro por estado y exportación a Excel.
-- **Administración** (solo admin): usuarios y su actividad (en línea / última actividad / últimos ingresos), e **informe de ventas** con cotizaciones y clientes nuevos por semana (lunes a domingo), avance de ventas, vendidos por tipología, mapa 3D de disponibilidad (blanco = disponible, negro = vendido), tablas de resumen y exportación a PDF.
+- Ventas: cada departamento vendido tiene un estado comercial ordenado en 5 pasos (**1 No responde**, **2 En conversaciones**, **3 Pago reserva**, **4 Carta oferta firmada**, **5 Firma promesa**; cada paso implica los anteriores) que se puede cambiar, un cliente asociado (de la lista guardada o nuevo) y una nota. Filtro por estado y exportación a Excel.
+- **Administración** (solo admin): usuarios y su actividad (en línea / última actividad / últimos ingresos), e **informe de ventas** con cotizaciones y clientes nuevos por semana (lunes a domingo), embudo de clientes por estado (cuántos llegaron a cada paso) con detalle por estado, avance de ventas, vendidos por tipología, mapa 3D de disponibilidad (blanco = disponible, negro = vendido), tablas de resumen y exportación a PDF.
 
 ## Usuarios
 
@@ -111,3 +111,7 @@ Además de las fichas base (tipos A a I), `public/index.html` incluye fichas pro
 ## Actualizar precios o fichas
 
 `public/index.html` se genera con el script `build_cotizador.ps1` (fuera del repositorio) a partir del Excel de pricing, el logo y las imágenes de las fichas. Para cambiar la lista de precios se vuelve a generar el archivo y se hace commit. **Atención:** la lógica de la aplicación (login, administración, informe) vive en el mismo archivo; si se regenera con el script hay que conservar esos cambios.
+
+## Estados de venta (octubre 2026)
+
+Los estados antiguos (Bloqueado / Reservado / Promesa) se reemplazaron por cinco estados ordenados: `noresponde` (1 · No responde), `conversaciones` (2 · En conversaciones), `reserva` (3 · Pago reserva), `cartaoferta` (4 · Carta oferta firmada) y `promesa` (5 · Firma promesa). Un estado implica los anteriores, por eso el informe muestra el embudo "clientes que han llegado a cada estado" (acumulado) además de cuántos están exactamente en cada uno, y al final un detalle por estado. Al arrancar, el servidor traduce los estados antiguos (`migrarEstados`): bloqueado → conversaciones, reservado → reserva, promesa → promesa.

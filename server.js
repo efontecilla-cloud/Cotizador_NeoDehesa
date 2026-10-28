@@ -42,7 +42,8 @@ function loadDb() {
   let db;
   try { db = Object.assign(emptyDb(), JSON.parse(fs.readFileSync(DB_FILE, 'utf8'))); }
   catch (e) { return emptyDb(); }
-  if (migrarFusiones(db)) saveDb(db);
+  const c1 = migrarFusiones(db), c2 = migrarEstados(db);
+  if (c1 || c2) saveDb(db);
   return db;
 }
 
@@ -50,7 +51,22 @@ function loadDb() {
 // Los 1D de la columna 09-O se fusionaron con los 08-O (poniente) y los 12-O con los 11-O (oriente) en un solo 3D.
 // Si en la base hay ventas o precios cargados con las claves antiguas, se juntan en la unidad fusionada. Es idempotente.
 const FUSIONES = { '09-O': '08-O', '12-O': '11-O' };
-const RANGO_ESTADO = { bloqueado: 1, reservado: 2, promesa: 3 };
+// Estados comerciales de una venta, ordenados por avance (un estado implica los anteriores).
+const ESTADOS_VENTA = ['noresponde', 'conversaciones', 'reserva', 'cartaoferta', 'promesa'];
+const ESTADO_LABEL = { noresponde: 'No responde', conversaciones: 'En conversaciones', reserva: 'Pago reserva', cartaoferta: 'Carta oferta firmada', promesa: 'Firma promesa' };
+const ESTADO_LEGACY = { bloqueado: 'conversaciones', reservado: 'reserva', promesa: 'promesa', '': 'conversaciones' };   // estados antiguos → nuevos
+const normEstado = e => { const s = String(e || '').toLowerCase(); return ESTADOS_VENTA.includes(s) ? s : (ESTADO_LEGACY[s] || null); };
+const RANGO_ESTADO = { noresponde: 1, conversaciones: 2, reserva: 3, cartaoferta: 4, promesa: 5 };
+// Convierte los estados antiguos (bloqueado / reservado / promesa) a los nuevos en ventas e historial. Idempotente.
+function migrarEstados(db) {
+  let cambio = false;
+  for (const v of Object.values(db.blocked || {})) {
+    const e = normEstado(v.estado) || 'conversaciones';
+    if (v.estado !== e) { v.estado = e; cambio = true; }
+    (v.historial || []).forEach(h => { const he = normEstado(h.estado); if (he && h.estado !== he) { h.estado = he; cambio = true; } });
+  }
+  return cambio;
+}
 function migrarFusiones(db) {
   let cambio = false;
   for (const [k, v] of Object.entries(db.blocked || {})) {
@@ -61,9 +77,9 @@ function migrarFusiones(db) {
     if (!d) {
       db.blocked[destino] = Object.assign({}, v, { unidad: Object.assign({}, v.unidad || {}, { label: FUSIONES[m[2] + '-O'], tipologia: '3D+2B' }), nota: [v.nota, `Fusión ${etiqueta}`].filter(Boolean).join(' · ') });
     } else {
-      const mejor = (RANGO_ESTADO[v.estado] || 1) > (RANGO_ESTADO[d.estado] || 1) ? v : d;
+      const mejor = (RANGO_ESTADO[normEstado(v.estado)] || 1) > (RANGO_ESTADO[normEstado(d.estado)] || 1) ? v : d;
       d.fecha = [d.fecha, v.fecha].filter(Boolean).sort()[0] || d.fecha;
-      d.estado = mejor.estado || 'bloqueado';
+      d.estado = normEstado(mejor.estado) || 'conversaciones';
       d.estadoFecha = [d.estadoFecha, v.estadoFecha].filter(Boolean).sort().pop() || d.estadoFecha;
       d.estadoPor = mejor.estadoPor || d.estadoPor;
       if (!(d.cliente && d.cliente.nombre) && v.cliente && v.cliente.nombre) d.cliente = v.cliente;
@@ -272,16 +288,15 @@ app.delete('/api/precios', requireAdmin, requirePin, (req, res) => {
 });
 
 // ---------- ventas (departamentos bloqueados) ----------
-// Cada venta tiene un estado comercial (bloqueado → reservado → promesa), un cliente y una nota.
-// El mismo POST crea la venta (blocked: true) o la actualiza si ya existe; blocked: false la libera.
-const ESTADOS_VENTA = ['bloqueado', 'reservado', 'promesa'];
+// Cada venta tiene un estado comercial (no responde → en conversaciones → pago reserva → carta oferta firmada → firma promesa),
+// un cliente y una nota. El mismo POST crea la venta (blocked: true) o la actualiza si ya existe; blocked: false la libera.
 app.post('/api/bloqueos', requirePin, (req, res) => {
   const { key, blocked, estado, cliente, nota, motivo, unidad, precioCierre, nEst, nBod } = req.body || {};
   if (!key) return res.status(400).json({ error: 'key requerida' });
   const db = loadDb();
   if (!blocked) { delete db.blocked[key]; saveDb(db); return res.json({ ok: true, blocked: db.blocked }); }
-  const e = String(estado || 'bloqueado').toLowerCase();
-  if (!ESTADOS_VENTA.includes(e)) return res.status(400).json({ error: 'estado inválido' });
+  const e = normEstado(estado || 'conversaciones');
+  if (!e) return res.status(400).json({ error: 'estado inválido' });
   const v = db.blocked[key] || { fecha: nowIso(), usuario: req.user.usuario, historial: [] };
   if (v.estado !== e) {
     v.estado = e; v.estadoFecha = nowIso(); v.estadoPor = req.user.usuario;
@@ -306,7 +321,7 @@ app.get('/api/ventas.xlsx', (req, res) => {
   const db = loadDb();
   const rows = Object.entries(db.blocked).map(([k, v]) => ({
     'Unidad': (v.unidad && v.unidad.label) || k, 'Piso': v.unidad && v.unidad.piso, 'Tipología': v.unidad && v.unidad.tipologia,
-    'Estado': cap(v.estado || 'bloqueado'), 'Fecha estado': fmtDate(v.estadoFecha || v.fecha), 'Cambiado por': v.estadoPor || v.usuario || '',
+    'Estado': ESTADO_LABEL[normEstado(v.estado) || 'conversaciones'], 'N° estado': RANGO_ESTADO[normEstado(v.estado) || 'conversaciones'], 'Fecha estado': fmtDate(v.estadoFecha || v.fecha), 'Cambiado por': v.estadoPor || v.usuario || '',
     'Precio venta UF': v.precioCierre || '', 'Estacionamientos': v.nEst || 0, 'Bodegas': v.nBod || 0,
     'Cliente': v.cliente && v.cliente.nombre, 'RUT': v.cliente && v.cliente.rut, 'Contacto': v.cliente && v.cliente.contacto,
     'Nota': v.nota || v.motivo || '', 'Registrada': fmtDate(v.fecha), 'Registrada por': v.usuario || ''
