@@ -115,3 +115,7 @@ Además de las fichas base (tipos A a I), `public/index.html` incluye fichas pro
 ## Estados de venta (octubre 2026)
 
 Los estados antiguos (Bloqueado / Reservado / Promesa) se reemplazaron por cinco estados ordenados: `noresponde` (1 · No responde), `conversaciones` (2 · En conversaciones), `reserva` (3 · Pago reserva), `cartaoferta` (4 · Carta oferta firmada) y `promesa` (5 · Firma promesa). Un estado implica los anteriores, por eso el informe muestra el embudo "ventas que han llegado a cada estado" (acumulado) además de cuántas están exactamente en cada uno, y al final un detalle por estado. Al arrancar, el servidor traduce los estados antiguos (`migrarEstados`): bloqueado → conversaciones, reservado → reserva, promesa → promesa.
+
+## Marcas de gestión de una venta (octubre 2026)
+
+Los estados se reemplazaron por tres marcas Sí/No independientes por venta: `reserva` (el cliente pagó la reserva), `carta` (firmó la carta oferta) y `promesa` (promesó). Se guardan en `blocked[clave].hitos = { reserva: { fecha, usuario } | null, carta, promesa }`; al marcar Sí se registra fecha y usuario, y el historial anota cada cambio. Todas las ventas parten con las tres marcas en No (los estados antiguos no se traducen). El informe de administración mide la gestión con esas fechas: resumen diario (últimas 24 horas, 7 días, acumulado) por ventas registradas, reservas pagadas, cartas oferta firmadas y promesas; ventas por marca; marcas por tipología; mapa y detalle de ventas con las tres marcas. Se puede exportar solo el resumen diario a PDF.

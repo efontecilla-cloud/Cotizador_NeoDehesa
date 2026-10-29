@@ -179,7 +179,14 @@
   .badge.on { background: #d1fae5; color: #065f46; } .badge.adm { background: #fef3c7; color: #78350f; }
   /* estados comerciales de una cotización */
   /* escala secuencial (un solo tono) porque los estados están ordenados por avance */
-  .badge.e-noresponde { background: #f1f5f9; color: #475569; } .badge.e-conversaciones { background: #dbeafe; color: #1e3a8a; } .badge.e-reserva { background: #93c5fd; color: #0b2a5b; } .badge.e-cartaoferta { background: #2563eb; color: white; } .badge.e-promesa { background: #0b2a5b; color: white; } .badge.e-none { background: #f1f5f9; color: #94a3b8; font-weight: 500; }
+  .badge.h-si { background: #0b2a5b; color: white; } .badge.h-no { background: #f1f5f9; color: #94a3b8; font-weight: 500; }
+  .hitos-cell { display: flex; flex-direction: column; gap: 3px; align-items: flex-start; }
+  .modal .hito-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .modal .hito-row .lbl { flex: 1; font-size: 12.5px; color: var(--ink); }
+  .modal .hito-row .lbl small { display: block; color: var(--muted); font-size: 11px; }
+  .modal .hito-row button { padding: 6px 14px; font-size: 12px; background: #f1f5f9; color: #334155; border: 2px solid transparent; }
+  .modal .hito-row button.active.si { border-color: var(--navy); background: var(--navy); color: white; }
+  .modal .hito-row button.active.no { border-color: #94a3b8; background: white; color: #334155; }
   table.tbl.resumen td { vertical-align: top; padding: 10px 8px; }
   table.tbl.resumen .big { font-size: 22px; color: var(--navy); font-variant-numeric: tabular-nums; }
   table.tbl.resumen .det { max-width: 280px; margin-left: auto; text-align: right; }
@@ -401,10 +408,10 @@
   <div class="page">
     <div class="card">
       <h2>Ventas</h2>
-      <div class="sub">Departamentos vendidos: se muestran en negro en el edificio y no admiten nuevas cotizaciones. Cada venta tiene un estado comercial en 5 pasos (1 No responde → 2 En conversaciones → 3 Pago reserva → 4 Carta oferta firmada → 5 Firma promesa; cada paso implica los anteriores), un cliente, precio de venta y una nota. Para registrar una, selecciona el departamento en la pestaña Cotizar y pulsa "Registrar venta".</div>
+      <div class="sub">Departamentos vendidos: se muestran en negro en el edificio y no admiten nuevas cotizaciones. Cada venta tiene tres marcas de gestión independientes, Sí o No (el cliente pagó la reserva, firmó la carta oferta, promesó), un cliente, precio de venta y una nota. Todas las marcas parten en No. Para registrar una, selecciona el departamento en la pestaña Cotizar y pulsa "Registrar venta".</div>
       <div class="bar">
         <input type="text" id="q-venta" placeholder="Buscar por unidad, tipología o cliente" oninput="renderVendidos()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px; width:260px;">
-        <select id="f-venta-estado" onchange="renderVendidos()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px;"><option value="*">Todos los estados</option><option value="noresponde">1 · No responde</option><option value="conversaciones">2 · En conversaciones</option><option value="reserva">3 · Pago reserva</option><option value="cartaoferta">4 · Carta oferta firmada</option><option value="promesa">5 · Firma promesa</option></select>
+        <select id="f-venta-estado" onchange="renderVendidos()" style="padding:6px 8px; border:1px solid #cbd5e1; border-radius:5px;"><option value="*">Todas las ventas</option><option value="reserva">Con reserva pagada</option><option value="carta">Con carta oferta firmada</option><option value="promesa">Promesadas</option><option value="ninguno">Sin ninguna marca</option><option value="sinreserva">Sin reserva pagada</option></select>
         <a class="btn-primary btn-sm" style="text-decoration:none; display:inline-block;" href="/api/ventas.xlsx">Exportar a Excel</a>
         <span class="hint" id="venta-info" style="margin:0"></span>
       </div>
@@ -460,7 +467,7 @@
   <div class="modal">
     <h3 id="edit-title">Venta</h3>
     <div class="sub" id="edit-sub"></div>
-    <div class="row"><label>Estado</label><div class="est-opts" id="edit-estados"></div></div>
+    <div class="row"><label>Gestión</label><div style="flex:1" id="edit-hitos"></div></div>
     <div class="row"><label>Cliente guardado</label><select id="edit-cli-sel" onchange="editPickCliente(this.value)"><option value="">— escribir a mano —</option></select></div>
     <div class="row"><label>Nombre</label><input type="text" id="edit-nombre" placeholder="Nombre del cliente"></div>
     <div class="row"><label>RUT</label><input type="text" id="edit-rut" placeholder="opcional"></div>
@@ -761,7 +768,8 @@ function renderVentaBox() {
   const tot = q && q.totales ? q.totales.total : null;
   box.style.display = '';
   box.innerHTML = `
-    <div class="vb-head"><span class="badge sold">VENDIDO</span> ${estadoBadge(ventaEstado(v))} <b>${uLabel(u)} · piso ${u.piso}°</b> <span class="hint" style="margin:0">desde el ${fmtDT(v.estadoFecha || v.fecha).slice(0, 10)} · registrada por ${esc(v.usuario || '')}</span></div>
+    <div class="vb-head"><span class="badge sold">VENDIDO</span> <b>${uLabel(u)} · piso ${u.piso}°</b> <span class="hint" style="margin:0">registrada el ${fmtDT(v.fecha).slice(0, 10)} por ${esc(v.usuario || '')}</span></div>
+    <div style="margin-top:6px; display:flex; gap:6px; flex-wrap:wrap;">${hitosBadges(v, true)}</div>
     <div class="vb-grid">
       <div><span>Cliente</span><b>${esc(cl.nombre) || '—'}</b>${cl.rut ? `<div class="hint" style="margin:0">${esc(cl.rut)}</div>` : ''}${cl.contacto ? `<div class="hint" style="margin:0">${esc(cl.contacto)}</div>` : ''}</div>
       <div><span>Precio de venta</span><b>${v.precioCierre > 0 ? 'UF ' + fmt0(v.precioCierre) : 'sin definir'}</b><div class="hint" style="margin:0">lista UF ${fmt0(u.lista)} · dcto UF ${fmt0(u.desc)}</div></div>
@@ -772,7 +780,7 @@ function renderVentaBox() {
     <div class="vb-cot">${q
       ? `Cotización ${q.otroCliente ? 'de la unidad (otro cliente)' : 'de la venta'}: <b>${esc(q.numero)}</b> · ${fmtDT(q.creada).slice(0, 10)}${tot != null ? ` · total <b>UF ${fmt0(tot)}</b>` : ''}${q.cliente && q.cliente.nombre ? ' · ' + esc(q.cliente.nombre) : ''} <button class="btn-secondary btn-sm" onclick="verCotizacion('${q.id}')">Ver / reimprimir</button>`
       : 'Esta venta no tiene una cotización registrada.'}</div>
-    <div class="acts"><button class="btn-primary btn-sm" onclick="cotizarVenta('${uKey(u)}')" ${v.precioCierre > 0 ? '' : 'title="La venta no tiene precio de venta definido; se usará el precio con descuento"'}>Cotizar al precio de venta</button><button class="btn-dark btn-sm" onclick="editarVenta('${uKey(u)}')">Estado / cliente / precio</button><button class="btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="liberar('${uKey(u)}')">Liberar (volver a disponible)</button><button class="btn-secondary btn-sm" onclick="showView('vendidos')">Ir a Ventas</button></div>`;
+    <div class="acts"><button class="btn-primary btn-sm" onclick="cotizarVenta('${uKey(u)}')" ${v.precioCierre > 0 ? '' : 'title="La venta no tiene precio de venta definido; se usará el precio con descuento"'}>Cotizar al precio de venta</button><button class="btn-dark btn-sm" onclick="editarVenta('${uKey(u)}')">Gestión / cliente / precio</button><button class="btn-sm" style="background:#fee2e2;color:#991b1b;" onclick="liberar('${uKey(u)}')">Liberar (volver a disponible)</button><button class="btn-secondary btn-sm" onclick="showView('vendidos')">Ir a Ventas</button></div>`;
 }
 // Prepara una cotización nueva para el comprador de la unidad vendida, al precio de venta acordado y con sus adicionales.
 function cotizarVenta(k) {
@@ -794,7 +802,7 @@ function updateSelbox() {
   if (!selected) { sb.innerHTML = '<span class="none">Ninguna unidad seleccionada. Haz click en el edificio.</span>'; return; }
   const u = selected, sold = isSold(u);
   const v = sold ? STATE.blocked[uKey(u)] : null;
-  sb.innerHTML = `<div>Unidad seleccionada: <b>${uLabel(u)} · piso ${u.piso}°</b> · ${esc(u.tipologia)} · ${esc(u.orientacion)} · ${u.ficha ? 'ficha tipo ' + u.ficha : 'sin ficha'}${u.fusion ? ' · <span class="badge no">fusión ' + esc(u.fusion) + '</span>' : ''}${sold ? ' <span class="badge sold">VENDIDO</span> ' + estadoBadge(ventaEstado(v)) : ''}</div>
+  sb.innerHTML = `<div>Unidad seleccionada: <b>${uLabel(u)} · piso ${u.piso}°</b> · ${esc(u.tipologia)} · ${esc(u.orientacion)} · ${u.ficha ? 'ficha tipo ' + u.ficha : 'sin ficha'}${u.fusion ? ' · <span class="badge no">fusión ' + esc(u.fusion) + '</span>' : ''}${sold ? ' <span class="badge sold">VENDIDO</span>' : ''}</div>
     <div style="margin-top:2px;">Lista <b>UF ${fmt0(u.lista)}</b> · con descuento <b>UF ${fmt0(u.desc)}</b> (−${fmtP((1 - u.desc / u.lista) * 100)}) · ${fmt2(supTotal(u))} m² (${fmt2(u.interior)} int + ${fmt2(u.terraza)} terraza)</div>
     ${sold ? '' : `<div class="acts"><button class="btn-dark btn-sm" onclick="marcarVendido('${uKey(u)}')">Registrar venta</button></div>`}`;
 }
@@ -809,31 +817,32 @@ function fillSelect() {
 function setActive(prefix, id) { document.querySelectorAll(`[id^="${prefix}"]`).forEach(b => b.classList.toggle('active', b.id === id)); }
 
 // ===== VENTAS (departamentos bloqueados) =====
-// Estado comercial de una venta, ordenado por avance: cada estado implica los anteriores.
-// [código, nombre, nombre corto]. Los estados antiguos (bloqueado / reservado) se traducen; sin estado = en conversaciones.
-const ESTADOS = [['noresponde', 'No responde', 'No resp.'], ['conversaciones', 'En conversaciones', 'Convers.'], ['reserva', 'Pago reserva', 'Reserva'], ['cartaoferta', 'Carta oferta firmada', 'Carta of.'], ['promesa', 'Firma promesa', 'Promesa']];
-const ESTADO_LEGACY = { bloqueado: 'conversaciones', reservado: 'reserva' };
-const ventaEstado = v => { if (!v) return 'conversaciones'; const e = ESTADO_LEGACY[v.estado] || v.estado; return ESTADOS.some(x => x[0] === e) ? e : 'conversaciones'; };
-const estadoRank = e => ESTADOS.findIndex(x => x[0] === e) + 1;                 // 1 (No responde) … 5 (Firma promesa)
-const estadoLabel = e => (ESTADOS.find(x => x[0] === e) || ESTADOS[1])[1];
-const estadoCorto = e => (ESTADOS.find(x => x[0] === e) || ESTADOS[1])[2];
-const estadoBadge = e => `<span class="badge e-${e}" title="Estado ${estadoRank(e)} de 5">${estadoRank(e)} · ${estadoLabel(e)}</span>`;
+// Marcas de gestión de una venta, Sí/No e independientes entre sí: [código, nombre, pregunta].
+// Todas parten en No; al marcar Sí se guarda la fecha y quién lo marcó (para medir la gestión diaria).
+const HITOS = [['reserva', 'Reserva pagada', 'El cliente pagó la reserva'], ['carta', 'Carta oferta firmada', 'El cliente firmó la carta oferta'], ['promesa', 'Promesó', 'El cliente promesó']];
+const hitoSi = (v, k) => !!(v && v.hitos && v.hitos[k]);
+const hitoFecha = (v, k) => hitoSi(v, k) ? (v.hitos[k].fecha || null) : null;
+const hitoLabel = k => (HITOS.find(h => h[0] === k) || [k, k])[1];
+const hitoBadge = (v, k, conFecha) => { const si = hitoSi(v, k); return `<span class="badge ${si ? 'h-si' : 'h-no'}" title="${esc(hitoLabel(k))}: ${si ? 'Sí' : 'No'}">${si ? '✓' : '✗'} ${esc(hitoLabel(k))}${si && conFecha && hitoFecha(v, k) ? ' · ' + fmtDT(hitoFecha(v, k)).slice(0, 10) : ''}</span>`; };
+const hitosBadges = (v, conFecha) => HITOS.map(h => hitoBadge(v, h[0], conFecha)).join(' ');
+const hitoCelda = (v, k) => hitoSi(v, k) ? `<span class="badge h-si">Sí</span><div class="hint" style="margin:0">${fmtDT(hitoFecha(v, k)).slice(0, 10)}</div>` : '<span class="badge h-no">No</span>';
+const nHitos = v => HITOS.filter(h => hitoSi(v, h[0])).length;
 const ventaNota = v => (v && (v.nota || (v.motivo && v.motivo !== 'Vendido' ? v.motivo : ''))) || '';
-let editKey = null, editEstado = 'conversaciones', editNueva = false;
+let editKey = null, editHitos = { reserva: false, carta: false, promesa: false }, editNueva = false;
 // Abre el editor: para registrar una venta nueva (desde la pestaña Cotizar) o para cambiar una existente.
 function marcarVendido(k) { abrirVenta(k, true); }
 function editarVenta(k) { abrirVenta(k, false); }
 function abrirVenta(k, nueva) {
   const u = unitByKey[k]; if (!u) return;
   const v = nueva ? null : STATE.blocked[k];
-  editKey = k; editNueva = nueva; editEstado = v ? ventaEstado(v) : 'conversaciones';
+  editKey = k; editNueva = nueva; editHitos = { reserva: hitoSi(v, 'reserva'), carta: hitoSi(v, 'carta'), promesa: hitoSi(v, 'promesa') };
   // En una venta nueva se proponen los datos del cliente que está en el formulario de cotización.
   const cl = v ? (v.cliente || {}) : { id: document.getElementById('cliente-sel').value || null, nombre: document.getElementById('cliente').value.trim(), rut: document.getElementById('rut').value.trim(), contacto: document.getElementById('contacto').value.trim() };
   document.getElementById('edit-title').textContent = `${nueva ? 'Registrar venta' : 'Venta'} · departamento ${uLabel(u)} · piso ${u.piso}°`;
   document.getElementById('edit-sub').textContent = nueva
     ? `${u.tipologia} · ${u.orientacion}. Al guardar, el departamento se marca en negro y no admite nuevas cotizaciones.`
-    : `${u.tipologia} · ${u.orientacion} · registrada el ${fmtDT(v.fecha)}${v.estadoFecha ? ` · estado "${estadoLabel(ventaEstado(v))}" desde el ${fmtDT(v.estadoFecha)} (${v.estadoPor || v.usuario || ''})` : ''}`;
-  renderEditEstados();
+    : `${u.tipologia} · ${u.orientacion} · registrada el ${fmtDT(v.fecha)} por ${v.usuario || ''}`;
+  renderEditHitos();
   const sel = document.getElementById('edit-cli-sel');
   sel.innerHTML = '<option value="">— escribir a mano —</option>' + [...STATE.clientes].sort((a, b) => a.nombre.localeCompare(b.nombre)).map(x => `<option value="${x.id}">${esc(x.nombre)}${x.rut ? ' · ' + esc(x.rut) : ''}</option>`).join('');
   const guardado = cl.id ? STATE.clientes.find(x => x.id === cl.id) : null;
@@ -850,8 +859,10 @@ function abrirVenta(k, nueva) {
   document.getElementById('edit-bg').classList.add('open');
   document.getElementById('edit-nombre').focus();
 }
-function renderEditEstados() {
-  document.getElementById('edit-estados').innerHTML = ESTADOS.map(([v, l], i) => `<button class="${v === editEstado ? 'active' : ''}" onclick="editEstado='${v}'; renderEditEstados()" title="Estado ${i + 1} de 5: implica los anteriores">${i + 1} · ${l}</button>`).join('');
+function renderEditHitos() {
+  const v = editKey ? STATE.blocked[editKey] : null;
+  document.getElementById('edit-hitos').innerHTML = HITOS.map(([k, l, pregunta]) => `<div class="hito-row"><div class="lbl">${pregunta}<small>${hitoSi(v, k) ? 'marcado Sí el ' + fmtDT(hitoFecha(v, k)) + (v.hitos[k].usuario ? ' por ' + esc(v.hitos[k].usuario) : '') : 'sin marcar'}</small></div>
+    <button class="${editHitos[k] ? 'active si' : ''}" onclick="editHitos['${k}']=true; renderEditHitos()">Sí</button><button class="${!editHitos[k] ? 'active no' : ''}" onclick="editHitos['${k}']=false; renderEditHitos()">No</button></div>`).join('');
 }
 function editPickCliente(id) {
   const x = STATE.clientes.find(c => c.id === id); if (!x) return;
@@ -870,11 +881,11 @@ async function guardarEdicion() {
       clId = nuevo.id;
     }
     const precioCierre = parseFloat(document.getElementById('edit-cierre').value) || null;
-    await api('POST', '/api/bloqueos', { key: editKey, blocked: true, estado: editEstado, cliente: { id: clId, nombre, rut, contacto }, nota: document.getElementById('edit-nota').value,
+    await api('POST', '/api/bloqueos', { key: editKey, blocked: true, hitos: editHitos, cliente: { id: clId, nombre, rut, contacto }, nota: document.getElementById('edit-nota').value,
       precioCierre, nEst: parseInt(document.getElementById('edit-est').value || '0', 10) || 0, nBod: parseInt(document.getElementById('edit-bod').value || '0', 10) || 0,
       unidad: { label: uLabel(u), piso: u.piso, tipologia: u.tipologia, orientacion: u.orientacion } });
     cerrarEdicion();
-    toast(`${uLabel(u)}: venta ${editNueva ? 'registrada' : 'actualizada'} (${estadoLabel(editEstado)})`);
+    toast(`${uLabel(u)}: venta ${editNueva ? 'registrada' : 'actualizada'}${Object.values(editHitos).some(Boolean) ? ' · ' + HITOS.filter(h => editHitos[h[0]]).map(h => h[1]).join(', ') : ''}`);
     if (editNueva && selected && uKey(selected) === editKey) selected = null;
     await loadState(); render();
   } catch (e) { if (e.message !== 'PIN' && e.message !== 'login') toast('No se pudo guardar: ' + e.message, true); }
@@ -889,10 +900,11 @@ function renderVendidos() {
   const t = document.getElementById('tbl-sold');
   const fe = document.getElementById('f-venta-estado').value;
   const q = (document.getElementById('q-venta').value || '').trim().toLowerCase();
-  const keys = Object.keys(STATE.blocked).filter(k => { const v = STATE.blocked[k], u = unitByKey[k] || {}; return (fe === '*' || ventaEstado(v) === fe) && (!q || `${u.unidad ? uLabel(u) : k} ${u.tipologia || ''} ${(v.cliente && v.cliente.nombre) || ''}`.toLowerCase().includes(q)); })
-    .sort((a, b) => ((STATE.blocked[b].estadoFecha || STATE.blocked[b].fecha) || '').localeCompare((STATE.blocked[a].estadoFecha || STATE.blocked[a].fecha) || ''));
+  const pasaFiltro = v => fe === '*' ? true : fe === 'ninguno' ? nHitos(v) === 0 : fe === 'sinreserva' ? !hitoSi(v, 'reserva') : hitoSi(v, fe);
+  const keys = Object.keys(STATE.blocked).filter(k => { const v = STATE.blocked[k], u = unitByKey[k] || {}; return pasaFiltro(v) && (!q || `${u.unidad ? uLabel(u) : k} ${u.tipologia || ''} ${(v.cliente && v.cliente.nombre) || ''}`.toLowerCase().includes(q)); })
+    .sort((a, b) => nHitos(STATE.blocked[b]) - nHitos(STATE.blocked[a]) || (STATE.blocked[b].fecha || '').localeCompare(STATE.blocked[a].fecha || ''));
   const tot = Object.keys(STATE.blocked).length;
-  document.getElementById('venta-info').textContent = `${keys.length} de ${tot} ventas · ${ESTADOS.map(([v, l, c]) => `${Object.values(STATE.blocked).filter(x => ventaEstado(x) === v).length} ${c.toLowerCase()}`).join(' · ')}`;
+  document.getElementById('venta-info').textContent = `${keys.length} de ${tot} ventas · ${HITOS.map(([k, l]) => `${Object.values(STATE.blocked).filter(x => hitoSi(x, k)).length} ${l.toLowerCase()}`).join(' · ')}`;
   // Totales (de las ventas que se muestran): precio de cierre, precio de lista de referencia, estacionamientos y bodegas.
   const sum = f => keys.reduce((s, k) => s + (f(STATE.blocked[k], unitByKey[k] || {}) || 0), 0);
   const totCierre = sum(v => v.precioCierre), conCierre = keys.filter(k => STATE.blocked[k].precioCierre > 0).length, totLista = sum((v, u) => u.lista), totDesc = sum((v, u) => u.desc), totEst = sum(v => v.nEst), totBod = sum(v => v.nBod);
@@ -903,10 +915,10 @@ function renderVendidos() {
     <div class="kpi"><div class="k">Estacionamientos</div><div class="v">${totEst}</div><div class="s">UF ${fmt0(totEst * EXTRAS.est.uf)} a precio de lista</div></div>
     <div class="kpi"><div class="k">Bodegas</div><div class="v">${totBod}</div><div class="s">UF ${fmt0(totBod * EXTRAS.bod.uf)} a precio de lista</div></div>`;
   if (!keys.length) { t.innerHTML = `<tr><td class="hint" style="padding:14px;">${tot ? 'Ninguna venta coincide con el filtro.' : 'No hay ventas registradas.'}</td></tr>`; return; }
-  t.innerHTML = '<tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Estado</th><th>Desde</th><th>Cliente</th><th>Contacto</th><th class="r">Lista UF</th><th class="r">Venta UF</th><th class="r">Est.</th><th class="r">Bod.</th><th>Nota</th><th>Por</th><th></th></tr>' + keys.map(k => {
+  t.innerHTML = '<tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Gestión</th><th>Registrada</th><th>Cliente</th><th>Contacto</th><th class="r">Lista UF</th><th class="r">Venta UF</th><th class="r">Est.</th><th class="r">Bod.</th><th>Nota</th><th>Por</th><th></th></tr>' + keys.map(k => {
     const u = unitByKey[k] || {}, v = STATE.blocked[k], cl = v.cliente || {};
-    return `<tr><td><b>${u.unidad ? uLabel(u) : k}</b></td><td>${u.piso || ''}°</td><td>${esc(u.tipologia)}<div class="hint" style="margin:0">${esc(u.orientacion)}</div></td><td>${estadoBadge(ventaEstado(v))}</td><td>${fmtDT(v.estadoFecha || v.fecha).slice(0, 10)}</td><td>${esc(cl.nombre) || '<span class="hint" style="margin:0">sin cliente</span>'}${cl.rut ? `<div class="hint" style="margin:0">${esc(cl.rut)}</div>` : ''}</td><td>${esc(cl.contacto) || '—'}</td><td class="r">${u.lista ? fmt0(u.lista) : ''}</td><td class="r">${v.precioCierre > 0 ? '<b>' + fmt0(v.precioCierre) + '</b>' : '<span class="hint" style="margin:0">—</span>'}</td><td class="r">${v.nEst || 0}</td><td class="r">${v.nBod || 0}</td><td>${esc(ventaNota(v)) || '—'}</td><td>${esc(v.estadoPor || v.usuario || '')}</td>
-      <td style="white-space:nowrap;"><button class="btn-secondary btn-sm" onclick="editarVenta('${k}')">Estado / cliente</button> <button class="btn-secondary btn-sm" onclick="liberar('${k}')">Liberar</button></td></tr>`;
+    return `<tr><td><b>${u.unidad ? uLabel(u) : k}</b></td><td>${u.piso || ''}°</td><td>${esc(u.tipologia)}<div class="hint" style="margin:0">${esc(u.orientacion)}</div></td><td><div class="hitos-cell">${hitosBadges(v, true)}</div></td><td>${fmtDT(v.fecha).slice(0, 10)}</td><td>${esc(cl.nombre) || '<span class="hint" style="margin:0">sin cliente</span>'}${cl.rut ? `<div class="hint" style="margin:0">${esc(cl.rut)}</div>` : ''}</td><td>${esc(cl.contacto) || '—'}</td><td class="r">${u.lista ? fmt0(u.lista) : ''}</td><td class="r">${v.precioCierre > 0 ? '<b>' + fmt0(v.precioCierre) + '</b>' : '<span class="hint" style="margin:0">—</span>'}</td><td class="r">${v.nEst || 0}</td><td class="r">${v.nBod || 0}</td><td>${esc(ventaNota(v)) || '—'}</td><td>${esc(v.usuario || '')}</td>
+      <td style="white-space:nowrap;"><button class="btn-secondary btn-sm" onclick="editarVenta('${k}')">Gestión / cliente</button> <button class="btn-secondary btn-sm" onclick="liberar('${k}')">Liberar</button></td></tr>`;
   }).join('');
 }
 
@@ -1155,7 +1167,7 @@ function showTip3D(ev, idx) {
   const el = document.getElementById('v3d-tip');
   if (b.sold) {
     const bl = STATE.blocked[uKey(u)] || {};
-    el.innerHTML = `<div class="tt-h"><span class="tt-sw" style="background:${SOLD_COLOR}"></span>${uLabel(u)} · ${esc(u.tipologia)}</div><div class="tt-s">Piso ${u.piso}° · ${esc(u.orientacion)}</div><div class="tt-ticket" style="color:#f87171">VENDIDO · ${estadoLabel(ventaEstado(bl)).toUpperCase()}</div><div class="tt-s">${bl.cliente && bl.cliente.nombre ? esc(bl.cliente.nombre) + ' · ' : ''}${bl.estadoFecha || bl.fecha ? 'desde ' + fmtDT(bl.estadoFecha || bl.fecha).slice(0, 10) : ''}${ventaNota(bl) ? ' · ' + esc(ventaNota(bl)) : ''}</div><div class="tt-s" style="font-style:italic;opacity:0.7;margin-top:2px;">click para ver la venta y su cotización</div>`;
+    el.innerHTML = `<div class="tt-h"><span class="tt-sw" style="background:${SOLD_COLOR}"></span>${uLabel(u)} · ${esc(u.tipologia)}</div><div class="tt-s">Piso ${u.piso}° · ${esc(u.orientacion)}</div><div class="tt-ticket" style="color:#f87171">VENDIDO</div><div class="tt-s">${bl.cliente && bl.cliente.nombre ? esc(bl.cliente.nombre) + ' · ' : ''}${bl.fecha ? 'desde ' + fmtDT(bl.fecha).slice(0, 10) : ''}${ventaNota(bl) ? ' · ' + esc(ventaNota(bl)) : ''}</div><div class="tt-s">${HITOS.map(([k, l]) => `${hitoSi(bl, k) ? '✓' : '✗'} ${l}`).join(' · ')}</div><div class="tt-s" style="font-style:italic;opacity:0.7;margin-top:2px;">click para ver la venta y su cotización</div>`;
   } else {
     el.innerHTML = `<div class="tt-h"><span class="tt-sw" style="background:${tipoColor[u.tipologia] || '#94a3b8'}"></span>${uLabel(u)} · ${esc(u.tipologia)}${uLabel(u) === '10-O' ? ' · Punta oriente' : ''}</div>
     <div class="tt-s">Piso ${u.piso}° · <b style="color:white">${esc(u.orientacion)}</b> · ${esc(u.categoria)} · ${u.ficha ? 'ficha tipo ' + u.ficha : 'sin ficha'}${u.fusion ? ' · fusión ' + esc(u.fusion) : ''}</div>
@@ -1472,7 +1484,6 @@ async function loadAdmin() {
 }
 
 // --- lista de precios: descarga a Excel, carga con vista previa y restauración ---
-const ESTADO_VENTA_LABEL = Object.fromEntries(ESTADOS.map(([v, l]) => [v, l]));
 function filasPrecios() {
   return [...UNITS].sort((a, b) => b.piso - a.piso || a.unidad.localeCompare(b.unidad) || a.lado.localeCompare(b.lado)).map(u => {
     const v = STATE.blocked[uKey(u)], cl = (v && v.cliente) || {};
@@ -1481,7 +1492,7 @@ function filasPrecios() {
       'Sup. interior m2': u.interior, 'Sup. terraza m2': u.terraza, 'Azotea m2': u.azotea || 0, 'Patio m2': u.patio || 0,
       'Precio lista UF': u.lista, 'Precio descuento UF': u.desc, 'Dcto %': Math.round((1 - u.desc / u.lista) * 1000) / 10,
       'Precio lista original UF': u.lista0, 'Precio descuento original UF': u.desc0,
-      'Vendido': v ? 'Sí' : 'No', 'Estado': v ? (ESTADO_VENTA_LABEL[ventaEstado(v)] || 'En conversaciones') : 'Disponible', 'N° estado': v ? estadoRank(ventaEstado(v)) : '',
+      'Vendido': v ? 'Sí' : 'No', 'Reserva pagada': v ? (hitoSi(v, 'reserva') ? 'Sí' : 'No') : '', 'Carta oferta firmada': v ? (hitoSi(v, 'carta') ? 'Sí' : 'No') : '', 'Promesó': v ? (hitoSi(v, 'promesa') ? 'Sí' : 'No') : '',
       'Precio venta UF': v && v.precioCierre > 0 ? v.precioCierre : '', 'Estacionamientos': v ? (v.nEst || 0) : '', 'Bodegas': v ? (v.nBod || 0) : '',
       'Comprador': cl.nombre || '', 'RUT': cl.rut || '', 'Contacto': cl.contacto || '',
       'Fecha venta': v ? fmtDT(v.fecha).slice(0, 10) : '', 'Fecha estado': v ? fmtDT(v.estadoFecha || v.fecha).slice(0, 10) : '', 'Nota': v ? ventaNota(v) : '', 'Registrada por': v ? (v.usuario || '') : ''
@@ -1565,9 +1576,9 @@ async function cargarPrecios(input) {
       + (errores.length ? `<div class="warn" style="display:block; margin-bottom:8px;"><b>No se puede aplicar.</b> Corrige el archivo y vuelve a cargarlo:<br>${errores.slice(0, 15).map(esc).join('<br>')}${errores.length > 15 ? '<br>… y ' + (errores.length - 15) + ' más' : ''}</div>` : '')
       + (avisos.length ? `<div class="hint" style="margin:0 0 8px 0; color:#b45309;">${avisos.slice(0, 10).map(esc).join('<br>')}${avisos.length > 10 ? '<br>… y ' + (avisos.length - 10) + ' más' : ''}</div>` : '')
       + (ventaCambios.length ? `<div class="hint" style="font-weight:600; color:#334155; margin-top:6px;">Ventas que se actualizan en la pestaña Ventas (actual → nuevo)</div><div style="overflow-x:auto; max-height:240px; overflow-y:auto; margin-bottom:8px;"><table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Estado</th><th>Cliente</th><th class="r">Precio venta UF</th><th class="r">Estacionamientos</th><th class="r">Bodegas</th></tr>`
-        + ventaCambios.map(c => { const cel = (act, nuevo) => nuevo === undefined ? `<td class="r" style="color:#94a3b8">${act}</td>` : `<td class="r">${act} → <b style="color:#0b2a5b">${nuevo}</b></td>`; return `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${estadoBadge(ventaEstado(c.v))}</td><td>${esc(c.v.cliente && c.v.cliente.nombre) || '—'}</td>${cel(c.v.precioCierre > 0 ? fmt0(c.v.precioCierre) : '—', c.cambio.precio !== undefined ? fmt0(c.cambio.precio) : undefined)}${cel(c.v.nEst || 0, c.cambio.nEst)}${cel(c.v.nBod || 0, c.cambio.nBod)}</tr>`; }).join('') + '</table></div>' : '')
+        + ventaCambios.map(c => { const cel = (act, nuevo) => nuevo === undefined ? `<td class="r" style="color:#94a3b8">${act}</td>` : `<td class="r">${act} → <b style="color:#0b2a5b">${nuevo}</b></td>`; return `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${hitosBadges(c.v)}</td><td>${esc(c.v.cliente && c.v.cliente.nombre) || '—'}</td>${cel(c.v.precioCierre > 0 ? fmt0(c.v.precioCierre) : '—', c.cambio.precio !== undefined ? fmt0(c.cambio.precio) : undefined)}${cel(c.v.nEst || 0, c.cambio.nEst)}${cel(c.v.nBod || 0, c.cambio.nBod)}</tr>`; }).join('') + '</table></div>' : '')
       + (cambios.length ? `<div class="hint" style="font-weight:600; color:#334155; margin-top:6px;">Cambios en la lista de precios</div><div style="overflow-x:auto; max-height:360px; overflow-y:auto;"><table class="tbl"><tr><th>Unidad</th><th>Piso</th><th>Tipología</th><th class="r">Lista actual</th><th class="r">Lista nueva</th><th class="r">Dcto actual</th><th class="r">Dcto nuevo</th><th class="r">% dcto nuevo</th><th>Venta</th></tr>`
-        + cambios.map(c => { const v = STATE.blocked[uKey(c.u)]; const dl = c.lista !== c.u.lista, dd = c.desc !== c.u.desc; return `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${esc(c.u.tipologia)}</td><td class="r">${fmt0(c.u.lista)}</td><td class="r" style="${dl ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.lista)}</td><td class="r">${fmt0(c.u.desc)}</td><td class="r" style="${dd ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.desc)}</td><td class="r">${fmtP((1 - c.desc / c.lista) * 100)}</td><td>${v ? estadoBadge(ventaEstado(v)) + ' <span class="hint" style="margin:0">la venta no cambia</span>' : ''}</td></tr>`; }).join('') + '</table></div>' : (!errores.length && !ventaCambios.length ? '<div class="hint">El archivo no trae cambios respecto de la lista vigente ni de los precios de venta.</div>' : ''))
+        + cambios.map(c => { const v = STATE.blocked[uKey(c.u)]; const dl = c.lista !== c.u.lista, dd = c.desc !== c.u.desc; return `<tr><td><b>${uLabel(c.u)}</b></td><td>${c.u.piso}°</td><td>${esc(c.u.tipologia)}</td><td class="r">${fmt0(c.u.lista)}</td><td class="r" style="${dl ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.lista)}</td><td class="r">${fmt0(c.u.desc)}</td><td class="r" style="${dd ? 'font-weight:700;color:#0b2a5b' : 'color:#94a3b8'}">${fmt0(c.desc)}</td><td class="r">${fmtP((1 - c.desc / c.lista) * 100)}</td><td>${v ? hitosBadges(v) + ' <span class="hint" style="margin:0">la venta no cambia</span>' : ''}</td></tr>`; }).join('') + '</table></div>' : (!errores.length && !ventaCambios.length ? '<div class="hint">El archivo no trae cambios respecto de la lista vigente ni de los precios de venta.</div>' : ''))
       + (preciosPendientes && (cambios.length || ventaCambios.length) ? `<div class="actions" style="margin-top:10px;"><button class="btn-primary" onclick="aplicarPrecios()">Aplicar${cambios.length ? ` ${cambios.length} cambio${cambios.length === 1 ? '' : 's'} de precio` : ''}${cambios.length && ventaCambios.length ? ' y' : ''}${ventaCambios.length ? ` ${ventaCambios.length} venta${ventaCambios.length === 1 ? '' : 's'} (precio, estacionamientos o bodegas)` : ''}</button><button class="btn-secondary" onclick="cancelarPrecios()">Cancelar</button></div>` : '');
   } catch (e) { preciosPendientes = null; prev.innerHTML = `<div class="warn" style="display:block;">${esc(e.message)}</div>`; }
   input.value = '';
@@ -1677,11 +1688,6 @@ function chartTip(ev, txt) {
 }
 
 // Primera fecha en que una venta alcanzó el estado de rango `rankMin` o uno posterior (historial de cambios); si no hay historial, la fecha del estado actual.
-function fechaHito(v, rankMin) {
-  const hs = (v.historial || []).filter(h => estadoRank(ESTADO_LEGACY[h.estado] || h.estado) >= rankMin && h.fecha).map(h => h.fecha).sort();
-  if (hs.length) return hs[0];
-  return estadoRank(ventaEstado(v)) >= rankMin ? (v.estadoFecha || v.fecha || null) : null;
-}
 function renderInforme() {
   const el = document.getElementById('rep');
   if (!el || !isAdmin()) return;
@@ -1689,63 +1695,47 @@ function renderInforme() {
   const soldUnits = soldKeys.map(k => unitByKey[k]).filter(Boolean);
   const nSold = soldUnits.length, nFree = UNITS.length - nSold;
   const tipos = Object.keys(tipoColor);
-  // embudo comercial: los estados están ordenados, así que un cliente en el estado N "llegó" a todos los anteriores
-  const EST_COLOR = { noresponde: '#cbd5e1', conversaciones: '#93c5fd', reserva: '#60a5fa', cartaoferta: '#2563eb', promesa: REP.navy };
-  const ventas = soldKeys.map(k => { const e = ventaEstado(STATE.blocked[k]); return { k, u: unitByKey[k], v: STATE.blocked[k], e, rank: estadoRank(e) }; });
-  // clientes distintos (por id o nombre); el estado del cliente es el más avanzado de sus ventas
-  const clienteKey = cl => (cl && (cl.id || normNombre(cl.nombre))) || null;
-  const clientesMap = {};
-  ventas.forEach(x => { const ck = clienteKey(x.v.cliente) || ('venta:' + x.k); const c = clientesMap[ck] || (clientesMap[ck] = { nombre: (x.v.cliente && x.v.cliente.nombre) || 'Sin cliente', rank: 0, e: 'noresponde', ventas: [] }); c.ventas.push(x); if (x.rank > c.rank) { c.rank = x.rank; c.e = x.e; } });
-  const clientesArr = Object.values(clientesMap);
-  const porEstado = ESTADOS.map(([v, l, corto], i) => {
-    const rank = i + 1, vs = ventas.filter(x => x.e === v);
-    return { v, label: l, corto, rank, n: vs.length, nAcum: ventas.filter(x => x.rank >= rank).length, clientes: clientesArr.filter(c => c.rank === rank).length, clientesAcum: clientesArr.filter(c => c.rank >= rank).length,
-      uf: vs.reduce((s, x) => s + ((x.u && x.u.lista) || 0), 0), ufVenta: vs.reduce((s, x) => s + (x.v.precioCierre || 0), 0) };
-  });
-  const estadoPorTipo = tipos.map(t => { const r = { label: t, total: 0 }; ESTADOS.forEach(([v]) => { r[v] = ventas.filter(x => x.u && x.u.tipologia === t && x.e === v).length; r.total += r[v]; }); return r; });
-  const ventasOrden = [...ventas].sort((a, b) => b.rank - a.rank || ((b.v.estadoFecha || b.v.fecha) || '').localeCompare((a.v.estadoFecha || a.v.fecha) || ''));
+  const ventas = soldKeys.map(k => ({ k, u: unitByKey[k], v: STATE.blocked[k], n: nHitos(STATE.blocked[k]) }));
   const now = new Date();
-  // Resumen diario de gestión: cuántas ventas alcanzaron cada hito en las últimas 24 h, en los últimos 7 días y en total.
-  // La fecha del hito es la primera vez que la venta llegó a ese estado o a uno posterior (según el historial de cambios).
   const t24 = now.getTime() - 24 * 3600e3, t7 = now.getTime() - 7 * 86400e3;
-  const HITOS = [
-    { label: 'Ventas registradas', desc: 'departamentos con venta registrada (cualquier estado)', rank: 0, fecha: x => x.v.fecha || null },
-    { label: 'Reservas pagadas', desc: 'estado 3 · Pago reserva, o posterior', rank: 3, fecha: x => fechaHito(x.v, 3) },
-    { label: 'Cartas oferta firmadas', desc: 'estado 4 · Carta oferta firmada, o posterior', rank: 4, fecha: x => fechaHito(x.v, 4) },
-    { label: 'Promesas firmadas', desc: 'estado 5 · Firma promesa', rank: 5, fecha: x => fechaHito(x.v, 5) }
-  ];
-  const resumen = HITOS.map(h => {
-    // acumulado: ventas que hoy están en ese estado o en uno posterior (igual que el embudo); 24 h y 7 días: por fecha en que alcanzaron el hito
-    const alcanzaron = ventas.filter(x => x.rank >= h.rank);
-    const fechas = alcanzaron.map(x => h.fecha(x) || x.v.estadoFecha || x.v.fecha).filter(Boolean).map(f => new Date(f).getTime());
+  // Resumen diario de gestión: ventas registradas y cada marca Sí/No, por fecha en que se marcó (últimas 24 h, 7 días) y total.
+  const filas = [{ key: null, label: 'Ventas registradas', desc: 'departamentos con venta registrada', fecha: x => x.v.fecha || null }]
+    .concat(HITOS.map(([k, l, d]) => ({ key: k, label: l, desc: d, fecha: x => hitoFecha(x.v, k) })));
+  const resumen = filas.map(f => {
+    const con = ventas.filter(x => f.key ? hitoSi(x.v, f.key) : true);
+    const fechas = con.map(x => f.fecha(x) || x.v.fecha).filter(Boolean).map(d => new Date(d).getTime());
     const en = desde => fechas.filter(t => t >= desde && t <= now.getTime()).length;
-    return { label: h.label, desc: h.desc, rank: h.rank, n24: en(t24), n7: en(t7), total: alcanzaron.length };
+    return { key: f.key, label: f.label, desc: f.desc, n24: en(t24), n7: en(t7), total: con.length };
   });
+  const HITO_COLOR = { reserva: '#93c5fd', carta: '#2563eb', promesa: REP.navy, ninguno: '#cbd5e1' };
+  const sinMarca = ventas.filter(x => x.n === 0).length;
+  const porHito = HITOS.map(([k, l]) => { const vs = ventas.filter(x => hitoSi(x.v, k)); return { k, label: l, n: vs.length, ufVenta: vs.reduce((s, x) => s + (x.v.precioCierre || 0), 0), ufLista: vs.reduce((s, x) => s + ((x.u && x.u.lista) || 0), 0) }; });
+  const porTipo = tipos.map(t => { const vs = ventas.filter(x => x.u && x.u.tipologia === t); const r = { label: t, total: vs.length, ninguno: vs.filter(x => x.n === 0).length }; HITOS.forEach(([k]) => r[k] = vs.filter(x => hitoSi(x.v, k)).length); return r; });
+  const ventasOrden = [...ventas].sort((a, b) => b.n - a.n || ((b.v.fecha || '').localeCompare(a.v.fecha || '')));
   el.innerHTML = `
     <div class="rep-head">
       <div><img src="${LOGO}" alt="Vitalia Inmobiliaria"><div class="hint" style="margin:4px 0 0 0">${esc(PROYECTO.empresa)} · Proyecto ${esc(PROYECTO.nombre)}</div></div>
-      <div><h1>INFORME DE VENTAS</h1><div class="meta">Ventas por estado comercial<br>Generado el ${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())} por ${esc(STATE.user.nombre || STATE.user.usuario)}</div></div>
+      <div><h1>INFORME DE VENTAS</h1><div class="meta">Gestión de reservas, cartas oferta y promesas<br>Generado el ${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())} por ${esc(STATE.user.nombre || STATE.user.usuario)}</div></div>
     </div>
-    <div class="fig" id="rep-resumen" style="margin-bottom:16px;"><h4>Resumen diario de gestión</h4><div class="sub">Cuántas ventas alcanzaron cada hito en las últimas 24 horas, en los últimos 7 días y en total. Corte: ${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())}. Una venta cuenta en un hito desde la primera vez que llegó a ese estado o a uno posterior.</div>
+    <div class="fig" id="rep-resumen" style="margin-bottom:16px;"><h4>Resumen diario de gestión</h4><div class="sub">Cuántas ventas se registraron y cuántas marcas Sí se pusieron en las últimas 24 horas, en los últimos 7 días y en total. Corte: ${pad2(now.getDate())}/${pad2(now.getMonth() + 1)}/${now.getFullYear()} ${pad2(now.getHours())}:${pad2(now.getMinutes())}. Las marcas son independientes: una venta puede tener carta oferta firmada sin reserva pagada, o al revés.</div>
       <table class="tbl resumen"><tr><th>Hito</th><th class="r">Últimas 24 horas</th><th class="r">Últimos 7 días</th><th class="r">Acumulado histórico</th></tr>
-      ${resumen.map(r => `<tr><td><b>${r.label}</b><div class="hint" style="margin:0">${r.desc}</div></td><td class="r"><b class="big">${r.n24}</b></td><td class="r"><b class="big">${r.n7}</b></td><td class="r"><b class="big">${r.total}</b>${r.total && r.rank ? `<div class="hint" style="margin:0">${Math.round(r.total / Math.max(1, nSold) * 100)}% de las ventas</div>` : ''}</td></tr>`).join('')}</table></div>
+      ${resumen.map(r => `<tr><td><b>${r.label}</b><div class="hint" style="margin:0">${r.desc}</div></td><td class="r"><b class="big">${r.n24}</b></td><td class="r"><b class="big">${r.n7}</b></td><td class="r"><b class="big">${r.total}</b>${r.key && nSold ? `<div class="hint" style="margin:0">${Math.round(r.total / nSold * 100)}% de las ventas</div>` : ''}</td></tr>`).join('')}</table></div>
     <div class="kpis" style="grid-template-columns: repeat(4, 1fr);">
-      <div class="kpi"><div class="k">Ventas registradas</div><div class="v">${nSold}</div><div class="s">${Math.round(nSold / UNITS.length * 100)}% del edificio · ${clientesArr.length} clientes</div></div>
-      <div class="kpi"><div class="k">Ventas con promesa firmada</div><div class="v">${porEstado[4].nAcum}</div><div class="s">${porEstado[3].nAcum} llegaron a carta oferta · ${porEstado[2].nAcum} a pago reserva</div></div>
-      <div class="kpi"><div class="k">Departamentos disponibles</div><div class="v">${nFree}</div><div class="s">de ${UNITS.length} unidades</div></div>
-      <div class="kpi"><div class="k">Precios de venta</div><div class="v">UF ${fmt0(porEstado.reduce((s, r) => s + r.ufVenta, 0))}</div><div class="s">UF ${fmt0(porEstado.reduce((s, r) => s + r.uf, 0))} a precio de lista</div></div>
+      <div class="kpi"><div class="k">Ventas registradas</div><div class="v">${nSold}</div><div class="s">${Math.round(nSold / UNITS.length * 100)}% del edificio · ${nFree} disponibles</div></div>
+      ${porHito.map(r => `<div class="kpi"><div class="k">${esc(r.label)}</div><div class="v">${r.n}</div><div class="s">${nSold ? Math.round(r.n / nSold * 100) : 0}% de las ventas${r.ufVenta ? ' · UF ' + fmt0(r.ufVenta) + ' en precios de venta' : ''}</div></div>`).join('')}
     </div>
     <div class="rep-grid">
-      <div class="fig"><h4>Ventas que han llegado a cada estado</h4><div class="sub">Embudo de las ${nSold} ventas registradas. Los estados van en orden: una venta en "Carta oferta firmada" también pasó por pago de reserva y conversaciones, por eso cada barra incluye a las ventas de los estados siguientes.</div>
-        ${hBarChart(porEstado.map(r => ({ label: `${r.rank} · ${r.corto}`, v: r.nAcum, color: EST_COLOR[r.v], sub: `${r.n} exactamente en este estado · ${r.clientes} cliente${r.clientes === 1 ? '' : 's'}` })), { aria: 'Ventas que han llegado a cada estado', padL: 96 })}
-        <table class="tbl" style="margin-top:8px;"><tr><th>Estado</th><th class="r">Ventas que llegaron</th><th class="r">En este estado hoy</th><th class="r">% de las ventas</th><th class="r">UF lista</th><th class="r">UF venta</th><th class="r">Clientes</th></tr>
-        ${porEstado.map(r => `<tr><td>${estadoBadge(r.v)}</td><td class="r"><b>${r.nAcum}</b></td><td class="r">${r.n}</td><td class="r">${nSold ? Math.round(r.nAcum / nSold * 100) : 0}%</td><td class="r">${fmt0(r.uf)}</td><td class="r">${r.ufVenta ? fmt0(r.ufVenta) : '—'}</td><td class="r">${r.clientes}</td></tr>`).join('')}
-        <tr style="font-weight:700;"><td>Total</td><td class="r">${nSold}</td><td class="r">${nSold}</td><td class="r"></td><td class="r">${fmt0(porEstado.reduce((s, r) => s + r.uf, 0))}</td><td class="r">${fmt0(porEstado.reduce((s, r) => s + r.ufVenta, 0))}</td><td class="r">${clientesArr.length}</td></tr></table></div>
-      <div class="fig"><h4>Estado por tipología</h4><div class="sub">Cuántas unidades de cada tipología están hoy en cada estado (1 = No responde … 5 = Firma promesa).</div>
-        <table class="tbl"><tr><th>Tipología</th>${ESTADOS.map(([v, l, c], i) => `<th class="r" title="${esc(l)}">${i + 1} · ${esc(c)}</th>`).join('')}<th class="r">Total</th><th class="r">Dispon.</th></tr>
-        ${estadoPorTipo.map(r => { const all = UNITS.filter(u => u.tipologia === r.label).length; return `<tr><td><b>${esc(r.label)}</b></td>${ESTADOS.map(([v]) => `<td class="r">${r[v] || ''}</td>`).join('')}<td class="r"><b>${r.total}</b></td><td class="r">${all - r.total}</td></tr>`; }).join('')}
-        <tr style="font-weight:700;"><td>Total</td>${porEstado.map(r => `<td class="r">${r.n}</td>`).join('')}<td class="r">${nSold}</td><td class="r">${nFree}</td></tr></table>
-        <div class="legend" style="margin-top:8px;">${ESTADOS.map(([v, l], i) => `<span><i style="background:${EST_COLOR[v]}"></i>${i + 1} · ${esc(l)}</span>`).join('')}</div></div>
+      <div class="fig"><h4>Ventas por marca de gestión</h4><div class="sub">Cuántas de las ${nSold} ventas tienen cada marca en Sí. Una venta puede contar en varias barras; "Sin ninguna marca" son las que tienen las tres en No.</div>
+        ${hBarChart(porHito.map(r => ({ label: r.label, v: r.n, color: HITO_COLOR[r.k], sub: `${nSold ? Math.round(r.n / nSold * 100) : 0}% de las ventas` })).concat([{ label: 'Sin ninguna marca', v: sinMarca, color: HITO_COLOR.ninguno, stroke: true, sub: 'las tres marcas en No' }]), { aria: 'Ventas por marca de gestión', padL: 130 })}
+        <table class="tbl" style="margin-top:8px;"><tr><th>Marca</th><th class="r">Ventas con Sí</th><th class="r">% de las ventas</th><th class="r">UF lista</th><th class="r">UF venta</th></tr>
+        ${porHito.map(r => `<tr><td><b>${esc(r.label)}</b></td><td class="r"><b>${r.n}</b></td><td class="r">${nSold ? Math.round(r.n / nSold * 100) : 0}%</td><td class="r">${fmt0(r.ufLista)}</td><td class="r">${r.ufVenta ? fmt0(r.ufVenta) : '—'}</td></tr>`).join('')}
+        <tr><td>Sin ninguna marca</td><td class="r">${sinMarca}</td><td class="r">${nSold ? Math.round(sinMarca / nSold * 100) : 0}%</td><td class="r"></td><td class="r"></td></tr>
+        <tr style="font-weight:700;"><td>Ventas registradas</td><td class="r">${nSold}</td><td class="r">100%</td><td class="r">${fmt0(ventas.reduce((s, x) => s + ((x.u && x.u.lista) || 0), 0))}</td><td class="r">${fmt0(ventas.reduce((s, x) => s + (x.v.precioCierre || 0), 0))}</td></tr></table></div>
+      <div class="fig"><h4>Marcas por tipología</h4><div class="sub">Por cada tipología: ventas registradas y cuántas tienen cada marca en Sí.</div>
+        <table class="tbl"><tr><th>Tipología</th><th class="r">Ventas</th>${HITOS.map(([k, l]) => `<th class="r">${esc(l)}</th>`).join('')}<th class="r">Sin marca</th><th class="r">Dispon.</th></tr>
+        ${porTipo.map(r => { const all = UNITS.filter(u => u.tipologia === r.label).length; return `<tr><td><b>${esc(r.label)}</b></td><td class="r"><b>${r.total}</b></td>${HITOS.map(([k]) => `<td class="r">${r[k] || ''}</td>`).join('')}<td class="r">${r.ninguno || ''}</td><td class="r">${all - r.total}</td></tr>`; }).join('')}
+        <tr style="font-weight:700;"><td>Total</td><td class="r">${nSold}</td>${porHito.map(r => `<td class="r">${r.n}</td>`).join('')}<td class="r">${sinMarca}</td><td class="r">${nFree}</td></tr></table>
+        <div class="legend" style="margin-top:8px;">${HITOS.map(([k, l]) => `<span><i style="background:${HITO_COLOR[k]}"></i>${esc(l)}</span>`).join('')}<span><i style="background:${HITO_COLOR.ninguno}"></i>Sin ninguna marca</span></div></div>
     </div>
     <div class="fig" style="margin-bottom:16px;"><h4>Mapa del edificio</h4><div class="sub">Blanco = disponible · Negro = vendido (bloqueado). Vista frontal desde la Av. José Alcalde Délano (sur) y vista posterior desde el norte.</div>
       <div class="rep-maps">
@@ -1753,18 +1743,15 @@ function renderInforme() {
         <div><div class="map-title">Por detrás · fachada norte (vista Manquehue)</div><div class="rep-3d"><svg id="rep-3d-svg-back" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet"></svg></div></div>
       </div>
       <div class="legend"><span><i style="background:#ffffff"></i>Disponible</span><span><i style="background:#111827"></i>Vendido</span><span><i style="background:#475569"></i>Core / escaleras</span><span><i style="background:#b6c2d1"></i>Circulación</span></div></div>
-    <div class="fig" style="margin-bottom:16px;"><h4>Detalle de ventas por estado</h4><div class="sub">Ventas en cada estado, del 1 al 5, con el cambio más reciente primero.</div>
-      ${porEstado.map(r => { const vs = ventasOrden.filter(x => x.e === r.v); return `<div class="est-sec"><h5>${estadoBadge(r.v)} <span>${r.n} venta${r.n === 1 ? '' : 's'} · ${r.clientes} cliente${r.clientes === 1 ? '' : 's'}${r.nAcum > r.n ? ` · ${r.nAcum} ventas llegaron a este estado o más allá` : ''}</span></h5>`
-        + (vs.length ? `<table class="tbl"><tr><th>Cliente</th><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Desde</th><th class="r">Lista UF</th><th class="r">Venta UF</th><th class="r">Est.</th><th class="r">Bod.</th><th>Nota</th><th>Por</th></tr>`
-          + vs.map(x => `<tr><td><b>${esc(x.v.cliente && x.v.cliente.nombre) || '—'}</b>${x.v.cliente && x.v.cliente.rut ? `<div class="hint" style="margin:0">${esc(x.v.cliente.rut)}</div>` : ''}</td><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${fmtDT(x.v.estadoFecha || x.v.fecha).slice(0, 10)}</td><td class="r">${x.u ? fmt0(x.u.lista) : ''}</td><td class="r">${x.v.precioCierre > 0 ? fmt0(x.v.precioCierre) : '—'}</td><td class="r">${x.v.nEst || 0}</td><td class="r">${x.v.nBod || 0}</td><td>${esc(ventaNota(x.v)) || '—'}</td><td>${esc(x.v.estadoPor || x.v.usuario || '')}</td></tr>`).join('')
-          + `<tr style="font-weight:700;"><td colspan="5">Subtotal</td><td class="r">${fmt0(vs.reduce((s, x) => s + ((x.u && x.u.lista) || 0), 0))}</td><td class="r">${fmt0(vs.reduce((s, x) => s + (x.v.precioCierre || 0), 0))}</td><td class="r">${vs.reduce((s, x) => s + (x.v.nEst || 0), 0)}</td><td class="r">${vs.reduce((s, x) => s + (x.v.nBod || 0), 0)}</td><td colspan="2"></td></tr></table>`
-          : '<div class="hint">Sin clientes en este estado.</div>') + '</div>'; }).join('')}
+    <div class="fig" style="margin-bottom:16px;"><h4>Detalle de ventas</h4><div class="sub">Todas las ventas con sus tres marcas; primero las más avanzadas y, a igual avance, la más reciente. Cada marca en Sí muestra la fecha en que se marcó.</div>
+      <table class="tbl"><tr><th>Cliente</th><th>Unidad</th><th>Piso</th><th>Tipología</th><th>Registrada</th>${HITOS.map(([k, l]) => `<th>${esc(l)}</th>`).join('')}<th class="r">Lista UF</th><th class="r">Venta UF</th><th class="r">Est.</th><th class="r">Bod.</th><th>Nota</th><th>Por</th></tr>
+      ${ventasOrden.length ? ventasOrden.map(x => `<tr><td><b>${esc(x.v.cliente && x.v.cliente.nombre) || '—'}</b>${x.v.cliente && x.v.cliente.rut ? `<div class="hint" style="margin:0">${esc(x.v.cliente.rut)}</div>` : ''}</td><td><b>${x.u ? uLabel(x.u) : esc(x.k)}</b></td><td>${x.u ? x.u.piso + '°' : ''}</td><td>${esc(x.u && x.u.tipologia)}</td><td>${fmtDT(x.v.fecha).slice(0, 10)}</td>${HITOS.map(([k]) => `<td>${hitoCelda(x.v, k)}</td>`).join('')}<td class="r">${x.u ? fmt0(x.u.lista) : ''}</td><td class="r">${x.v.precioCierre > 0 ? fmt0(x.v.precioCierre) : '—'}</td><td class="r">${x.v.nEst || 0}</td><td class="r">${x.v.nBod || 0}</td><td>${esc(ventaNota(x.v)) || '—'}</td><td>${esc(x.v.usuario || '')}</td></tr>`).join('') : '<tr><td colspan="14" class="hint">No hay ventas registradas.</td></tr>'}
+      ${ventasOrden.length ? `<tr style="font-weight:700;"><td colspan="5">Total · ${nSold} ventas</td>${porHito.map(r => `<td>${r.n} Sí</td>`).join('')}<td class="r">${fmt0(ventas.reduce((s, x) => s + ((x.u && x.u.lista) || 0), 0))}</td><td class="r">${fmt0(ventas.reduce((s, x) => s + (x.v.precioCierre || 0), 0))}</td><td class="r">${ventas.reduce((s, x) => s + (x.v.nEst || 0), 0)}</td><td class="r">${ventas.reduce((s, x) => s + (x.v.nBod || 0), 0)}</td><td colspan="2"></td></tr>` : ''}</table>
     </div>
     <div class="rep-foot"><span>${esc(PROYECTO.empresa)} · ${esc(PROYECTO.nombre)} · ${esc(PROYECTO.direccion)}</span><span>Lista de precios ${priceDateLabel()} · ${nSold} ventas de ${UNITS.length} unidades</span></div>`;
   render3D({ report: true, svg: document.getElementById('rep-3d-svg'), cam: { yaw: -32, pitch: 32, explode: 0 } });        // por delante (sur-este)
   render3D({ report: true, svg: document.getElementById('rep-3d-svg-back'), cam: { yaw: 148, pitch: 32, explode: 0 } });   // por detrás (norte-oeste)
 }
-// modo 'resumen': imprime solo el encabezado y el resumen diario de gestión.
 function exportarInforme(modo) {
   if (!isAdmin()) return;
   renderInforme();

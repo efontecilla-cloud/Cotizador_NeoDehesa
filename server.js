@@ -51,7 +51,10 @@ function loadDb() {
 // Los 1D de la columna 09-O se fusionaron con los 08-O (poniente) y los 12-O con los 11-O (oriente) en un solo 3D.
 // Si en la base hay ventas o precios cargados con las claves antiguas, se juntan en la unidad fusionada. Es idempotente.
 const FUSIONES = { '09-O': '08-O', '12-O': '11-O' };
-// Estados comerciales de una venta, ordenados por avance (un estado implica los anteriores).
+// Marcas de gestión de una venta (Sí/No, independientes): el cliente pagó la reserva, firmó la carta oferta, promesó.
+const HITOS_VENTA = ['reserva', 'carta', 'promesa'];
+const HITO_LABEL = { reserva: 'Reserva pagada', carta: 'Carta oferta firmada', promesa: 'Promesó' };
+// Estados antiguos (ya no se usan en la interfaz; se conservan en los datos por compatibilidad).
 const ESTADOS_VENTA = ['noresponde', 'conversaciones', 'reserva', 'cartaoferta', 'promesa'];
 const ESTADO_LABEL = { noresponde: 'No responde', conversaciones: 'En conversaciones', reserva: 'Pago reserva', cartaoferta: 'Carta oferta firmada', promesa: 'Firma promesa' };
 const ESTADO_LEGACY = { bloqueado: 'conversaciones', reservado: 'reserva', promesa: 'promesa', '': 'conversaciones' };   // estados antiguos → nuevos
@@ -83,6 +86,8 @@ function migrarFusiones(db) {
       d.estadoFecha = [d.estadoFecha, v.estadoFecha].filter(Boolean).sort().pop() || d.estadoFecha;
       d.estadoPor = mejor.estadoPor || d.estadoPor;
       if (!(d.cliente && d.cliente.nombre) && v.cliente && v.cliente.nombre) d.cliente = v.cliente;
+      d.hitos = d.hitos || {};
+      for (const k of HITOS_VENTA) { const a = d.hitos[k], b = v.hitos && v.hitos[k]; if (b && (!a || String(b.fecha) < String(a.fecha))) d.hitos[k] = b; }   // marca Sí con la fecha más antigua
       if (v.precioCierre > 0 || d.precioCierre > 0) d.precioCierre = Math.round(((d.precioCierre || 0) + (v.precioCierre || 0)) * 100) / 100;
       d.nEst = (d.nEst || 0) + (v.nEst || 0); d.nBod = (d.nBod || 0) + (v.nBod || 0);
       d.nota = [...new Set([d.nota, v.nota, `Fusión ${etiqueta}`].filter(Boolean))].join(' · ');
@@ -291,17 +296,22 @@ app.delete('/api/precios', requireAdmin, requirePin, (req, res) => {
 // Cada venta tiene un estado comercial (no responde → en conversaciones → pago reserva → carta oferta firmada → firma promesa),
 // un cliente y una nota. El mismo POST crea la venta (blocked: true) o la actualiza si ya existe; blocked: false la libera.
 app.post('/api/bloqueos', requirePin, (req, res) => {
-  const { key, blocked, estado, cliente, nota, motivo, unidad, precioCierre, nEst, nBod } = req.body || {};
+  const { key, blocked, estado, hitos, cliente, nota, motivo, unidad, precioCierre, nEst, nBod } = req.body || {};
   if (!key) return res.status(400).json({ error: 'key requerida' });
   const db = loadDb();
   if (!blocked) { delete db.blocked[key]; saveDb(db); return res.json({ ok: true, blocked: db.blocked }); }
-  const e = normEstado(estado || 'conversaciones');
-  if (!e) return res.status(400).json({ error: 'estado inválido' });
-  const v = db.blocked[key] || { fecha: nowIso(), usuario: req.user.usuario, historial: [] };
-  if (v.estado !== e) {
-    v.estado = e; v.estadoFecha = nowIso(); v.estadoPor = req.user.usuario;
-    v.historial = (v.historial || []).concat([{ fecha: v.estadoFecha, usuario: req.user.usuario, estado: e }]).slice(-50);
+  const v = db.blocked[key] || { fecha: nowIso(), usuario: req.user.usuario, historial: [], hitos: {} };
+  // Marcas de gestión Sí/No (independientes): reserva pagada, carta oferta firmada, promesó. Al pasar a Sí se guarda fecha y usuario.
+  if (hitos && typeof hitos === 'object') {
+    v.hitos = v.hitos || {};
+    for (const k of HITOS_VENTA) {
+      if (hitos[k] === undefined) continue;
+      const si = !!hitos[k];
+      if (si && !v.hitos[k]) { v.hitos[k] = { fecha: nowIso(), usuario: req.user.usuario }; v.historial = (v.historial || []).concat([{ fecha: nowIso(), usuario: req.user.usuario, hito: k, valor: true }]).slice(-50); }
+      else if (!si && v.hitos[k]) { v.hitos[k] = null; v.historial = (v.historial || []).concat([{ fecha: nowIso(), usuario: req.user.usuario, hito: k, valor: false }]).slice(-50); }
+    }
   }
+  if (estado !== undefined) { const e = normEstado(estado); if (e) v.estado = e; }   // campo antiguo, se conserva solo por compatibilidad
   if (cliente !== undefined) {
     const cl = cliente || {};
     v.cliente = { id: cl.id || null, nombre: String(cl.nombre || '').trim(), rut: String(cl.rut || '').trim(), contacto: String(cl.contacto || '').trim() };
@@ -321,7 +331,9 @@ app.get('/api/ventas.xlsx', (req, res) => {
   const db = loadDb();
   const rows = Object.entries(db.blocked).map(([k, v]) => ({
     'Unidad': (v.unidad && v.unidad.label) || k, 'Piso': v.unidad && v.unidad.piso, 'Tipología': v.unidad && v.unidad.tipologia,
-    'Estado': ESTADO_LABEL[normEstado(v.estado) || 'conversaciones'], 'N° estado': RANGO_ESTADO[normEstado(v.estado) || 'conversaciones'], 'Fecha estado': fmtDate(v.estadoFecha || v.fecha), 'Cambiado por': v.estadoPor || v.usuario || '',
+    'Reserva pagada': v.hitos && v.hitos.reserva ? 'Sí' : 'No', 'Fecha reserva': fmtDate(v.hitos && v.hitos.reserva && v.hitos.reserva.fecha),
+    'Carta oferta firmada': v.hitos && v.hitos.carta ? 'Sí' : 'No', 'Fecha carta oferta': fmtDate(v.hitos && v.hitos.carta && v.hitos.carta.fecha),
+    'Promesó': v.hitos && v.hitos.promesa ? 'Sí' : 'No', 'Fecha promesa': fmtDate(v.hitos && v.hitos.promesa && v.hitos.promesa.fecha),
     'Precio venta UF': v.precioCierre || '', 'Estacionamientos': v.nEst || 0, 'Bodegas': v.nBod || 0,
     'Cliente': v.cliente && v.cliente.nombre, 'RUT': v.cliente && v.cliente.rut, 'Contacto': v.cliente && v.cliente.contacto,
     'Nota': v.nota || v.motivo || '', 'Registrada': fmtDate(v.fecha), 'Registrada por': v.usuario || ''
