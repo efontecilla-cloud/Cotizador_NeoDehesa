@@ -119,3 +119,7 @@ Los estados antiguos (Bloqueado / Reservado / Promesa) se reemplazaron por cinco
 ## Marcas de gestión de una venta (octubre 2026)
 
 Los estados se reemplazaron por tres marcas Sí/No independientes por venta: `reserva` (el cliente pagó la reserva), `carta` (firmó la carta oferta) y `promesa` (promesó). Se guardan en `blocked[clave].hitos = { reserva: { fecha, usuario } | null, carta, promesa }`; al marcar Sí se registra fecha y usuario, y el historial anota cada cambio. Todas las ventas parten con las tres marcas en No (los estados antiguos no se traducen). El informe de administración mide la gestión con esas fechas: resumen diario (últimas 24 horas, 7 días, acumulado) por ventas registradas, reservas pagadas, cartas oferta firmadas y promesas; ventas por marca; marcas por tipología; mapa y detalle de ventas con las tres marcas. Se puede exportar solo el resumen diario a PDF.
+
+## Cambios de nombre de unidades (noviembre 2026)
+
+Solo cambia el nombre que se muestra: la columna 10-O se llama **9-O**, la 11-O se llama **10-O** y la 13-O se llama **11-O**. Las claves internas (`piso-unidad-lado`), las superficies, los precios, las ventas, las cotizaciones y la posición en el edificio no cambian. La tabla `UNIT_ALIAS` en `index.html` (y en `server.js` para los Excel) traduce el nombre interno al mostrado; al cargar un Excel de precios, las columnas Unidad/Lado o Código se aceptan con el nombre nuevo.

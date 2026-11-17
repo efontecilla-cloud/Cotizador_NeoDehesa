@@ -330,7 +330,7 @@ app.post('/api/bloqueos', requirePin, (req, res) => {
 app.get('/api/ventas.xlsx', (req, res) => {
   const db = loadDb();
   const rows = Object.entries(db.blocked).map(([k, v]) => ({
-    'Unidad': (v.unidad && v.unidad.label) || k, 'Piso': v.unidad && v.unidad.piso, 'Tipología': v.unidad && v.unidad.tipologia,
+    'Unidad': nombreUnidad(v.unidad && v.unidad.label, k), 'Piso': v.unidad && v.unidad.piso, 'Tipología': v.unidad && v.unidad.tipologia,
     'Reserva pagada': v.hitos && v.hitos.reserva ? 'Sí' : 'No', 'Fecha reserva': fmtDate(v.hitos && v.hitos.reserva && v.hitos.reserva.fecha),
     'Carta oferta firmada': v.hitos && v.hitos.carta ? 'Sí' : 'No', 'Fecha carta oferta': fmtDate(v.hitos && v.hitos.carta && v.hitos.carta.fecha),
     'Promesó': v.hitos && v.hitos.promesa ? 'Sí' : 'No', 'Fecha promesa': fmtDate(v.hitos && v.hitos.promesa && v.hitos.promesa.fecha),
@@ -404,7 +404,7 @@ app.get('/api/cotizaciones.xlsx', (req, res) => {
   const db = loadDb();
   const rows = db.cotizaciones.map(c => ({
     'N°': c.numero, 'Fecha': c.fecha, 'Emitida': fmtDate(c.creada),
-    'Unidad': c.unidad && c.unidad.label, 'Piso': c.unidad && c.unidad.piso, 'Tipología': c.unidad && c.unidad.tipologia, 'Orientación': c.unidad && c.unidad.orientacion,
+    'Unidad': nombreUnidad(c.unidad && c.unidad.label, c.unidad && c.unidad.key), 'Piso': c.unidad && c.unidad.piso, 'Tipología': c.unidad && c.unidad.tipologia, 'Orientación': c.unidad && c.unidad.orientacion,
     'Cliente': c.cliente && c.cliente.nombre, 'RUT': c.cliente && c.cliente.rut, 'Contacto': c.cliente && c.cliente.contacto,
     'Con descuento': c.aplica ? 'Sí' : 'No', 'Precio especial UF': c.precioEspecial > 0 ? c.precioEspecial : '',
     'Precio lista UF': c.totales && c.totales.lista, 'Descuento UF': c.totales && c.totales.descuento, 'Total UF': c.totales && c.totales.total,
@@ -468,6 +468,9 @@ app.post('/api/restore', requireAdmin, requirePin, (req, res) => {
 
 // ---------- utilidades ----------
 function fmtDate(iso) { return iso ? String(iso).replace('T', ' ').slice(0, 16) : ''; }
+// Cambios de nombre (noviembre 2026): en los Excel se muestra el nombre nuevo; las claves internas no cambian.
+const UNIT_ALIAS = { '10-O': '9-O', '11-O': '10-O', '13-O': '11-O' };
+function nombreUnidad(label, key) { const l = label || (key ? String(key).replace(/^\d-/, '') : ''); return UNIT_ALIAS[l] || l; }
 function cap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
 function sendXlsx(res, rows, sheet, filename) {
   const ws = XLSX.utils.json_to_sheet(rows.length ? rows : [{ 'Sin datos': '' }]);
